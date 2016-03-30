@@ -14,24 +14,23 @@ import theano.tensor as T
 from hyperopt import hp
 from math import log
 
-from acidano.data_processing.load_data import load_data_seq_tvt
-from acidano.models.Variational_LSTM.class_def import Variational_LSTM
+from acidano.models.lop.Variational_LSTM.class_def import Variational_LSTM
 
 
 # Define hyper-parameter search space
 def get_header():
-    return ['n_z',  # latent space
+    return ['temporal_order',  # = size of the batches
+            'n_z',  # latent space
             'n_h', 'n_c',
-            'temporal_order',  # = size of the batches
             'beta1', 'beta2', 'alpha'  # ADAM parameters
             'accuracy']
 
 
 def get_hp_space():
-    space = (hp.qloguniform('n_z', log(100), log(1000), 20),
+    space = (hp.qloguniform('temporal_order', log(10), log(100), 10),
+             hp.qloguniform('n_z', log(100), log(1000), 20),
              hp.qloguniform('n_h', log(100), log(1000), 20),
              hp.qloguniform('n_c', log(100), log(1000), 20),
-             hp.qloguniform('temporal_order', log(10), log(100), 10),
              # hyper-parameter for Adam are from Kingma & Lei Ba
              hp.uniform('beta1', 0, 0.9),
              hp.uniform('beta2', 0.99, 0.999),
@@ -42,7 +41,7 @@ def get_hp_space():
 
 def train(params, dataset, temporal_granularity, log_file_path):
     # Hyperparams
-    n_z, n_h, n_c, temporal_order, beta1, beta2, alpha = params
+    temporal_order, n_z, n_h, n_c, beta1, beta2, alpha = params
 
     # Cast the hp
     n_z = int(n_z)
@@ -79,13 +78,7 @@ def train(params, dataset, temporal_granularity, log_file_path):
     ########################################
     # Dimension : time * pitch
     orch, orch_mapping, piano, piano_mapping, train_index, val_index, _ \
-        = load_data_seq_tvt(data_path=dataset,
-                            log_file_path='bullshit.txt',
-                            temporal_granularity=temporal_granularity,
-                            temporal_order=temporal_order,
-                            shared_bool=True,
-                            bin_unit_bool=True,
-                            split=(0.7, 0.1, 0.2))
+        = dataset
 
     # Get dimensions
     orch_dim = orch.get_value(borrow=True).shape[1]

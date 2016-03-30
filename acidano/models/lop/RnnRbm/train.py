@@ -15,18 +15,18 @@ from hyperopt import hp
 from math import log
 
 from acidano.data_processing.load_data import load_data_seq_tvt
-from acidano.models.RnnRbm.class_def import RnnRbm
+from acidano.models.lop.RnnRbm.class_def import RnnRbm
 
 
 # Define hyper-parameter search space
 def get_header():
-    return ['n_hidden', 'n_hidden_recurrent', 'temporal_order', 'K', 'accuracy']
+    return ['temporal_order', 'n_hidden', 'n_hidden_recurrent', 'K', 'accuracy']
 
 
 def get_hp_space():
-    space = (hp.qloguniform('n_hidden', log(100), log(5000), 10),
+    space = (hp.qloguniform('temporal_order', log(10), log(100), 10),
+             hp.qloguniform('n_hidden', log(100), log(5000), 10),
              hp.qloguniform('n_hidden_recurrent', log(100), log(5000), 1),
-             hp.qloguniform('temporal_order', log(10), log(100), 10),
              hp.qloguniform('K', log(2), log(20), 1)
              #  hp.loguniform('learning_rate_RBM', log(0.0001), log(1)),
              #  hp.loguniform('learning_rate_RNN', log(0.0001), log(1)),
@@ -41,7 +41,7 @@ def get_hp_space():
 def train(params, dataset, temporal_granularity, log_file_path):
     # Hyperparams
     # n_hidden, n_hidden_recurrent, learning_rate, activation_func, sampling_positive = params
-    n_hidden, n_hidden_recurrent, temporal_order, K = params
+    temporal_order, n_hidden, n_hidden_recurrent, K = params
 
     # Cast the hp
     n_hidden = int(n_hidden)

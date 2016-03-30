@@ -14,18 +14,18 @@ from theano.tensor.shared_randomstreams import RandomStreams
 from hyperopt import hp
 from math import log
 
-from Data_processing.load_data import load_data_tvt
-from Models.Temporal_RBM.class_def import RBM_temporal_bin
+from acidano.data_processing.load_data import load_data_tvt
+from acidano.models.lop.Temporal_RBM.class_def import RBM_temporal_bin
 
 
 # Define hyper-parameter search space
 def get_header():
-    return ['n_hidden', 'temporal_order', 'batch_size', 'accuracy']
+    return ['temporal_order', 'n_hidden', 'batch_size', 'accuracy']
 
 
 def get_hp_space():
-    space = (hp.qloguniform('n_hidden', log(100), log(5000), 10),
-             hp.qloguniform('temporal_order', log(1), log(30), 1),
+    space = (hp.qloguniform('temporal_order', log(1), log(30), 1),
+             hp.qloguniform('n_hidden', log(100), log(5000), 10),
              # hp.loguniform('learning_rate', log(0.0001), log(1)),
              hp.quniform('batch_size', 10, 500, 10)
              #  hp.choice('activation_func', ['tanh', 'sigmoid']),
@@ -39,7 +39,7 @@ def train(params, dataset, temporal_granularity, log_file_path):
     # Hyperparams
     # n_hidden, temporal_order, learning_rate, \
     #     batch_size, activation_func, sampling_positive = params
-    n_hidden, temporal_order, batch_size = params
+    temporal_order, n_hidden, batch_size = params
 
     # Cast the hp
     n_hidden = int(n_hidden)
