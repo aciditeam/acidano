@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Wrapper for visualization of a dumped numpy array into a csv file
+
+# This script is just a wrapper for visualizing
+# a numpy array which has been dymped in a csv file
 
 import sys
 import os

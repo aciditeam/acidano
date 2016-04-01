@@ -8,6 +8,7 @@ import numpy as np
 # To save a numpy array in a csv file :
 # np.savetxt('dump.csv', data_np, delimiter=',')
 
+
 def dump_to_csv(path_to_data='dump.csv', save_path='data.csv'):
     with open(path_to_data, 'rb') as f:
         mat = np.genfromtxt(f, delimiter=',', dtype=None)
