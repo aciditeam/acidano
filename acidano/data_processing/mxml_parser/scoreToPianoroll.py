@@ -59,6 +59,9 @@ class ScoreToPianorollHandler(xml.sax.ContentHandler):
         self.time = 0              # time counter
         self.division_score = -1     # rhythmic quantization of the original score (in division of the quarter note)
         self.division_pianoroll = division  # thythmic quantization of the pianoroll we are writting
+        self.beat = -1
+        self.beat_type = -1
+        self.bar_length = -1
 
         # Current note information
         # Pitch
@@ -132,6 +135,11 @@ class ScoreToPianorollHandler(xml.sax.ContentHandler):
             self.dynamics = np.zeros([self.total_length * self.division_pianoroll], dtype=np.float) + 0.5  # Don't initialize to zero knowing if no dynamic is given
             self.dyn_flag = {}
 
+        if tag == u'note':
+            self.not_played_note = False
+            if u'print-object' in attributes.keys():
+                if attributes[u'print-object'] == "no":
+                    self.not_played_note = True
         if tag == u'rest':
             self.rest = True
         if tag == u'chord':
@@ -184,7 +192,6 @@ class ScoreToPianorollHandler(xml.sax.ContentHandler):
                     self.dyn_flag[self.direction_stop] = 'Cresc_stop'
                 elif self.direction_type == u'diminuendo':
                     ending_dyn = max(starting_dyn - 0.1, 0)
-                    import pdb; pdb.set_trace()
                     self.dynamics[self.direction_start:self.direction_stop] = \
                         np.linspace(starting_dyn, ending_dyn, self.direction_stop - self.direction_start)
                     self.dyn_flag[self.direction_start] = 'Dim_start'
@@ -212,7 +219,8 @@ class ScoreToPianorollHandler(xml.sax.ContentHandler):
 
             not_a_rest = not self.rest
             not_a_grace = not self.grace or not self.discard_grace
-            if not_a_rest and not_a_grace:
+            note_played = not self.not_played_note
+            if not_a_rest and not_a_grace and note_played:
                 # Check file integrity
                 if not self.pitch_set:
                     print "XML misformed, a Pitch tag is missing"
@@ -261,7 +269,7 @@ class ScoreToPianorollHandler(xml.sax.ContentHandler):
                     self.articulation_local[start_time:start_time + 1, midi_pitch] = int(1)
 
             # Increment the time counter
-            if not self.grace:
+            if not self.grace and note_played:
                 self.time += self.duration
             # Set to "0" different values
             self.pitch_set = False
@@ -344,11 +352,24 @@ class ScoreToPianorollHandler(xml.sax.ContentHandler):
             # Time and measure informations
             if self.CurrentElement == u"divisions":
                 self.division_score = int(content)
+                if (not self.beat == -1) and (not self.beat_type == -1):
+                    self.bar_length = int(self.division_score * self.beat * 4 / self.beat_type)
+            if self.CurrentElement == u"beats":
+                self.beat = int(content)
+            if self.CurrentElement == u"beat-type":
+                self.beat_type = int(content)
+                assert (not self.beat == -1), "beat and beat type wrong"
+                assert (not self.division_score == -1), "division non defined"
+                self.bar_length = int(self.division_score * self.beat * 4 / self.beat_type)
 
             # Note informations
             if self.CurrentElement == u"duration":
                 self.duration = int(content)
                 self.duration_set = True
+                if self.rest:
+                    # A lot of (bad) publisher use a semibreve rest to say "rest all the bar"
+                    if self.duration > self.bar_length:
+                        self.duration = self.bar_length
             if self.CurrentElement == u"step":
                 self.step = content
                 self.step_set = True

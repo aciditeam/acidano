@@ -12,14 +12,20 @@
 # TODO : Ajouter les <articulations> (notations DOSIM quoi wech)
 
 import xml.sax
-import json
 import os
 import re
+
+# Data import
+import cPickle
+from collections import OrderedDict
+
+# Numpy
+import numpy as np
+
+# Acidano
 from scoreToPianoroll import ScoreToPianorollHandler
 from totalLengthHandler import TotalLengthHandler
-# Debug
-# import pdb
-import cPickle
+
 # import matplotlib.pyplot as plt
 # from matplotlib.backends.backend_pdf import PdfPages
 # import mpldatacursor
@@ -29,21 +35,56 @@ def build_db(database_path, quantization, pitch_per_instrument, instru_dict_path
     # First load the instrument dictionnary
     if instru_dict_path is None:
         # Create a defaut empty file if not indicated
-        instru_dict_path = database_path + u"instrument_dico.json"
+        instru_dict_path = u"instru_regex.p"
         instru_dict = {}
     elif os.path.isfile(instru_dict_path):
-        with open(instru_dict_path) as f:
-
-            instru_dict = json.load(f)
+        with open(instru_dict_path, "rb") as f:
+            instru_dict = OrderedDict()
+            instru_dict = cPickle.load(f)
     else:
-        raise NameError(instru_dict_path + " is not a json file")
+        raise NameError(instru_dict_path + " is not a pickle file")
+
+    # Get time length for the pianoroll
+    T = 0
+    for dirname, dirnames, filenames in os.walk(database_path):
+        for filename in filenames:
+            # Is it a music xml file ?
+            filename_test = re.match("(.*)\.xml", filename, re.I)
+            if not filename_test:
+                continue
+
+            full_path_file = os.path.join(dirname, filename)
+
+            # Get the total length in quarter notes of the track
+            pre_parser = xml.sax.make_parser()
+            pre_parser.setFeature(xml.sax.handler.feature_namespaces, 0)
+            Handler_length = TotalLengthHandler()
+            pre_parser.setContentHandler(Handler_length)
+            pre_parser.parse(full_path_file)
+            total_length = Handler_length.total_length
+            # Float number
+            T += int(total_length)
+    # Mutliply by the quantization
+    T = T * quantization
 
     # Data are stored in a dictionnary
-    data = {}
-    data['scores'] = {}
+    N_instr = len(instru_dict.keys())
+    orchestra_dim_full = N_instr * pitch_per_instrument
+    pr_piano_full = np.zeros((T, pitch_per_instrument))
+    pr_orchestra_full = np.zeros((T, orchestra_dim_full))
+    arti_piano_full = np.zeros((T, pitch_per_instrument))
+    arti_orchestra_full = np.zeros((T, orchestra_dim_full))
+    new_track_ind = []
+
+    # Build mapping
+    instru_mapping = OrderedDict()
     counter = 0
+    for key in instru_dict.keys():
+        instru_mapping[key] = (counter, counter + pitch_per_instrument)
+        counter = counter + pitch_per_instrument
 
     # Browse database_path folder
+    time = 0
     for dirname, dirnames, filenames in os.walk(database_path):
         for filename in filenames:
             # Is it a music xml file ?
@@ -72,44 +113,63 @@ def build_db(database_path, quantization, pitch_per_instrument, instru_dict_path
             parser.setContentHandler(Handler_score)
             parser.parse(full_path_file)
 
-            dict_tmp = {'pianoroll': Handler_score.pianoroll,
-                        'articulation': Handler_score.articulation,
-                        'filename': filename
-                        }
-            data['scores'][counter] = dict_tmp
-            counter += 1
+            # Using Mapping, build concatenated along time and pitch pianoroll
+            track_length = total_length * quantization
+            start_t = time
+            end_t = time + track_length
+            for instru_name, mat in Handler_score.pianoroll.iteritems():
+                if instru_name == 'piano':
+                    pr_piano_full[start_t:end_t, :] = mat
+                else:
+                    pitch_ind = instru_mapping[instru_name]
+                    start_p = pitch_ind[0]
+                    end_p = pitch_ind[1]
+                    pr_orchestra_full[start_t:end_t, start_p:end_p] = mat
+            for instru_name, mat in Handler_score.articulation.iteritems():
+                if instru_name == 'piano':
+                    arti_piano_full[start_t:end_t] = mat
+                else:
+                    pitch_ind = instru_mapping[instru_name]
+                    start_p = pitch_ind[0]
+                    end_p = pitch_ind[1]
+                    arti_orchestra_full[start_t:end_t, start_p:end_p] = mat
+            # Store starting track indices
+            new_track_ind.append(time)
 
-    ################################################
-    # Save the instrument dictionary with its,
-    # potentially, new notations per instrument
-    ################################################
-    # Quantization
+            # Increment time counter
+            time += track_length
+
+    # Get the list of non-zeros pitches : sum along time first
+    reduction_mapping_orch = np.nonzero(np.sum(pr_orchestra_full, 0))
+    reduction_mapping_piano = np.nonzero(np.sum(pr_piano_full, 0))
+    # Strange behavior of numpy...
+    reduction_mapping_orch = reduction_mapping_orch[0]
+    reduction_mapping_piano = reduction_mapping_piano[0]
+    # Remove unused pitches
+    pr_orchestra = pr_orchestra_full[:, reduction_mapping_orch]
+    arti_orchestra = arti_orchestra_full[:, reduction_mapping_orch]
+    pr_piano = pr_piano_full[:, reduction_mapping_piano]
+    arti_piano = arti_piano_full[:, reduction_mapping_piano]
+
+    # Write the structure in a dictionary
+    # See ~Recherche/Github/leo/Data/notes.md
+    data = OrderedDict()
     data['quantization'] = quantization
-    # Mapping instrument name -> indices in the complete pianoroll
-    instru_mapping = {}
-    first_ind = 0
-    for instru_name in instru_dict:
-        last_ind = first_ind + pitch_per_instrument
-        instru_mapping[instru_name] = first_ind, last_ind
-        first_ind = last_ind
     data['instru_mapping'] = instru_mapping
-    data['orchestra_dimension'] = last_ind  # Used for matrix initialization in other functions
-    print(instru_mapping)
-    if instru_dict_path is None:
-        instru_dict_path = output_path + 'instrument_dico.json'
-    save_data_json(instru_dict, instru_dict_path)
-    cPickle.dump(data, open(output_path + 'data.p', 'wb'))
-    return
+    data['reduction_mapping_orchestra'] = reduction_mapping_orch
+    data['reduction_mapping_piano'] = reduction_mapping_piano
+    data['articulation_orchestra'] = arti_orchestra
+    data['articulation_piano'] = arti_piano
+    data['pr_orchestra'] = pr_orchestra
+    data['pr_piano'] = pr_piano
+    data['change_track'] = new_track_ind
 
-
-def save_data_json(data, file_path):
-    with open(file_path, 'w') as outfile:
-        json.dump(data, outfile, sort_keys=True, indent=3, separators=(',', ': '))
-
+    with open(output_path, 'wb') as f:
+        cPickle.dump(data, f)
 
 if __name__ == '__main__':
-    build_db(database_path='../../../Database/LOP_db_musescore/',
+    build_db(database_path='/Users/leo/Recherche/GitHub_Aciditeam/lop/Database/LOP_db_small',
              quantization=4,
              pitch_per_instrument=128,
-             instru_dict_path='../../../Database/LOP_db_musescore/instrument_dico.json',
-             output_path='../../../Data/')
+             instru_dict_path='instru_regex.p',
+             output_path='/Users/leo/Recherche/GitHub_Aciditeam/lop/Data/data.p')

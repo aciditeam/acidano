@@ -2,7 +2,7 @@
 # -*- coding: utf8 -*-
 
 # Based on Bengio's team implementation
-
+import os
 # Numpy
 import numpy as np
 # Theano
@@ -19,8 +19,6 @@ from acidano.utils.optim import adam_L2
 from acidano.utils.cost import KLGaussianGaussian
 # Performance measures
 from acidano.utils.measure import accuracy_measure
-# Misc
-from collections import OrderedDict
 
 
 class Variational_LSTM(object):
@@ -36,7 +34,9 @@ class Variational_LSTM(object):
                  weights=None,
                  optimizer=None,
                  numpy_rng=None,
-                 theano_rng=None):
+                 theano_rng=None,
+                 orch_debug=None,
+                 piano_debug=None):
         '''Constructs and compiles Theano functions for training and sequence
         generation.
         n_hidden : integer
@@ -91,30 +91,30 @@ class Variational_LSTM(object):
         if weights is None:
             # Reparametrization networks
             # piano network
-            self.W_p1 = shared_normal(piano_dim, p2h_dim, 0.001)
-            self.W_p2 = shared_normal(p2h_dim, p2h_dim, 0.001)
-            self.W_p3 = shared_normal(p2h_dim, p2h_dim, 0.001)
-            self.W_p4 = shared_normal(p2h_dim, p2h_dim, 0.001)
+            self.W_p1 = shared_normal(piano_dim, p2h_dim, 0.1)
+            self.W_p2 = shared_normal(p2h_dim, p2h_dim, 0.1)
+            self.W_p3 = shared_normal(p2h_dim, p2h_dim, 0.1)
+            self.W_p4 = shared_normal(p2h_dim, p2h_dim, 0.1)
             self.b_p1 = shared_zeros(p2h_dim)
             self.b_p2 = shared_zeros(p2h_dim)
             self.b_p3 = shared_zeros(p2h_dim)
             self.b_p4 = shared_zeros(p2h_dim)
 
             # orchestra network
-            self.W_o1 = shared_normal(orch_dim, o2h_dim, 0.001)
-            self.W_o2 = shared_normal(o2h_dim, o2h_dim, 0.001)
-            self.W_o3 = shared_normal(o2h_dim, o2h_dim, 0.001)
-            self.W_o4 = shared_normal(o2h_dim, o2h_dim, 0.001)
+            self.W_o1 = shared_normal(orch_dim, o2h_dim, 0.1)
+            self.W_o2 = shared_normal(o2h_dim, o2h_dim, 0.1)
+            self.W_o3 = shared_normal(o2h_dim, o2h_dim, 0.1)
+            self.W_o4 = shared_normal(o2h_dim, o2h_dim, 0.1)
             self.b_o1 = shared_zeros(o2h_dim)
             self.b_o2 = shared_zeros(o2h_dim)
             self.b_o3 = shared_zeros(o2h_dim)
             self.b_o4 = shared_zeros(o2h_dim)
 
             # latent network
-            self.W_z1 = shared_normal(z_dim, z2h_dim, 0.001)
-            self.W_z2 = shared_normal(z2h_dim, z2h_dim, 0.001)
-            self.W_z3 = shared_normal(z2h_dim, z2h_dim, 0.001)
-            self.W_z4 = shared_normal(z2h_dim, z2h_dim, 0.001)
+            self.W_z1 = shared_normal(z_dim, z2h_dim, 0.1)
+            self.W_z2 = shared_normal(z2h_dim, z2h_dim, 0.1)
+            self.W_z3 = shared_normal(z2h_dim, z2h_dim, 0.1)
+            self.W_z4 = shared_normal(z2h_dim, z2h_dim, 0.1)
             self.b_z1 = shared_zeros(z2h_dim)
             self.b_z2 = shared_zeros(z2h_dim)
             self.b_z3 = shared_zeros(z2h_dim)
@@ -122,12 +122,12 @@ class Variational_LSTM(object):
 
             # Encoder (inference)
             enc_dim = o2h_dim + p2h_dim + h_dim
-            self.W_enc1 = shared_normal(enc_dim, enc_dim, 0.001)
-            self.W_enc2 = shared_normal(enc_dim, enc_dim, 0.001)
-            self.W_enc3 = shared_normal(enc_dim, enc_dim, 0.001)
-            self.W_enc4 = shared_normal(enc_dim, enc_dim, 0.001)
-            self.W_enc_mu = shared_normal(enc_dim, z_dim, 0.001)
-            self.W_enc_sig = shared_normal(enc_dim, z_dim, 0.001)
+            self.W_enc1 = shared_normal(enc_dim, enc_dim, 0.1)
+            self.W_enc2 = shared_normal(enc_dim, enc_dim, 0.1)
+            self.W_enc3 = shared_normal(enc_dim, enc_dim, 0.1)
+            self.W_enc4 = shared_normal(enc_dim, enc_dim, 0.1)
+            self.W_enc_mu = shared_normal(enc_dim, z_dim, 0.1)
+            self.W_enc_sig = shared_normal(enc_dim, z_dim, 0.1)
             self.b_enc1 = shared_zeros(enc_dim)
             self.b_enc2 = shared_zeros(enc_dim)
             self.b_enc3 = shared_zeros(enc_dim)
@@ -138,12 +138,12 @@ class Variational_LSTM(object):
             # Decoder (generation)
             # prior
             prior_dim = p2h_dim + h_dim
-            self.W_prior1 = shared_normal(prior_dim, prior_dim, 0.001)
-            self.W_prior2 = shared_normal(prior_dim, prior_dim, 0.001)
-            self.W_prior3 = shared_normal(prior_dim, prior_dim, 0.001)
-            self.W_prior4 = shared_normal(prior_dim, prior_dim, 0.001)
-            self.W_prior_mu = shared_normal(prior_dim, z_dim, 0.001)
-            self.W_prior_sig = shared_normal(prior_dim, z_dim, 0.001)
+            self.W_prior1 = shared_normal(prior_dim, prior_dim, 0.1)
+            self.W_prior2 = shared_normal(prior_dim, prior_dim, 0.1)
+            self.W_prior3 = shared_normal(prior_dim, prior_dim, 0.1)
+            self.W_prior4 = shared_normal(prior_dim, prior_dim, 0.1)
+            self.W_prior_mu = shared_normal(prior_dim, z_dim, 0.1)
+            self.W_prior_sig = shared_normal(prior_dim, z_dim, 0.1)
             self.b_prior1 = shared_zeros(prior_dim)
             self.b_prior2 = shared_zeros(prior_dim)
             self.b_prior3 = shared_zeros(prior_dim)
@@ -152,11 +152,11 @@ class Variational_LSTM(object):
             self.b_prior_sig = shared_zeros(z_dim)
 
             dec_dim = z2h_dim + p2h_dim + h_dim
-            self.W_dec1 = shared_normal(dec_dim, dec_dim, 0.001)
-            self.W_dec2 = shared_normal(dec_dim, dec_dim, 0.001)
-            self.W_dec3 = shared_normal(dec_dim, dec_dim, 0.001)
-            self.W_dec4 = shared_normal(dec_dim, dec_dim, 0.001)
-            self.W_dec_bin = shared_normal(dec_dim, orch_dim, 0.001)
+            self.W_dec1 = shared_normal(dec_dim, dec_dim, 0.1)
+            self.W_dec2 = shared_normal(dec_dim, dec_dim, 0.1)
+            self.W_dec3 = shared_normal(dec_dim, dec_dim, 0.1)
+            self.W_dec4 = shared_normal(dec_dim, dec_dim, 0.1)
+            self.W_dec_bin = shared_normal(dec_dim, orch_dim, 0.1)
             self.b_dec1 = shared_zeros(dec_dim)
             self.b_dec2 = shared_zeros(dec_dim)
             self.b_dec3 = shared_zeros(dec_dim)
@@ -167,22 +167,22 @@ class Variational_LSTM(object):
             # LSTM
             # input gate
             LSTM_in_dim = o2h_dim + z2h_dim
-            self.L_oi = shared_normal(LSTM_in_dim, h_dim, 0.001)
-            self.L_hi = shared_normal(h_dim, h_dim, 0.001)
+            self.L_oi = shared_normal(LSTM_in_dim, h_dim, 0.01)
+            self.L_hi = shared_normal(h_dim, h_dim, 0.01)
             self.b_i = shared_zeros(h_dim)
             # Internal cell
-            self.L_oc = shared_normal(LSTM_in_dim, h_dim, 0.001)
-            self.L_hc = shared_normal(h_dim, h_dim, 0.001)
+            self.L_oc = shared_normal(LSTM_in_dim, h_dim, 0.01)
+            self.L_hc = shared_normal(h_dim, h_dim, 0.01)
             self.b_c = shared_zeros(h_dim)
             # Forget gate
 
-            self.L_of = shared_normal(LSTM_in_dim, h_dim, 0.001)
-            self.L_hf = shared_normal(h_dim, h_dim, 0.001)
+            self.L_of = shared_normal(LSTM_in_dim, h_dim, 0.01)
+            self.L_hf = shared_normal(h_dim, h_dim, 0.01)
             self.b_f = shared_zeros(h_dim)
             # Output
             # No L_cout... as in Theano tuto
-            self.L_oout = shared_normal(LSTM_in_dim, h_dim, 0.001)
-            self.L_hout = shared_normal(h_dim, h_dim, 0.001)
+            self.L_oout = shared_normal(LSTM_in_dim, h_dim, 0.01)
+            self.L_hout = shared_normal(h_dim, h_dim, 0.01)
             self.b_out = shared_zeros(h_dim)
         else:
             # load weights
@@ -213,28 +213,28 @@ class Variational_LSTM(object):
 
         # We don't use the same learning rate for the different parts of the network
         # Hence we group them in different variables
-        self.params = self.W_p1, self.W_p2, self.W_p3, self.W_p4, \
-            self.b_p1, self.b_p2, self.b_p3, self.b_p4, \
-            self.W_o1, self.W_o2, self.W_o3, self.W_o4, \
-            self.b_o1, self.b_o2, self.b_o3, self.b_o4, \
-            self.W_z1, self.W_z2, self.W_z3, self.W_z4, \
-            self.b_z1, self.b_z2, self.b_z3, self.b_z4, \
-            self.W_enc1, self.W_enc2, self.W_enc3, self.W_enc4, \
-            self.W_enc_mu, self.W_enc_sig, \
-            self.b_enc1, self.b_enc2, self.b_enc3, self.b_enc4, \
-            self.b_enc_mu, self.b_enc_sig, \
-            self.W_prior1, self.W_prior2, self.W_prior3, self.W_prior4, \
-            self.W_prior_mu, self.W_prior_sig, \
-            self.b_prior1, self.b_prior2, self.b_prior3, self.b_prior4, \
-            self.b_prior_mu, self.b_prior_sig, \
-            self.W_dec1, self.W_dec2, self.W_dec3, self.W_dec4, \
-            self.W_dec_bin, \
-            self.b_dec1, self.b_dec2, self.b_dec3, self.b_dec4, \
-            self.b_dec_bin, \
-            self.L_oi, self.L_hi, self.b_i, \
-            self.L_oc, self.L_hc, self.b_c, \
-            self.L_of, self.L_hf, self.b_f, \
-            self.L_oout, self.L_hout, self.b_out
+        self.params_dico = {"W_p1": self.W_p1, "W_p2": self.W_p2, "W_p3": self.W_p3, "W_p4": self.W_p4,
+                            "b_p1": self.b_p1, "b_p2": self.b_p2, "b_p3": self.b_p3, "b_p4": self.b_p4,
+                            "W_o1": self.W_o1, "W_o2": self.W_o2, "W_o3": self.W_o3, "W_o4": self.W_o4,
+                            "b_o1": self.b_o1, "b_o2": self.b_o2, "b_o3": self.b_o3, "b_o4": self.b_o4,
+                            "W_z1": self.W_z1, "W_z2": self.W_z2, "W_z3": self.W_z3, "W_z4": self.W_z4,
+                            "b_z1": self.b_z1, "b_z2": self.b_z2, "b_z3": self.b_z3, "b_z4": self.b_z4,
+                            "W_enc1": self.W_enc1, "W_enc2": self.W_enc2, "W_enc3": self.W_enc3, "W_enc4": self.W_enc4,
+                            "W_enc_mu": self.W_enc_mu, "W_enc_sig": self.W_enc_sig,
+                            "b_enc1": self.b_enc1, "b_enc2": self.b_enc2, "b_enc3": self.b_enc3, "b_enc4": self.b_enc4,
+                            "b_enc_mu": self.b_enc_mu, "b_enc_sig": self.b_enc_sig,
+                            "W_prior1": self.W_prior1, "W_prior2": self.W_prior2, "W_prior3": self.W_prior3, "W_prior4": self.W_prior4,
+                            "W_prior_mu": self.W_prior_mu, "W_prior_sig": self.W_prior_sig,
+                            "b_prior1": self.b_prior1, "b_prior2": self.b_prior2, "b_prior3": self.b_prior3, "b_prior4": self.b_prior4,
+                            "b_prior_mu": self.b_prior_mu, "b_prior_sig": self.b_prior_sig,
+                            "W_dec1": self.W_dec1, "W_dec2": self.W_dec2, "W_dec3": self.W_dec3, "W_dec4": self.W_dec4,
+                            "W_dec_bin": self.W_dec_bin,
+                            "b_dec1": self.b_dec1, "b_dec2": self.b_dec2, "b_dec3": self.b_dec3, "b_dec4": self.b_dec4,
+                            "b_dec_bin": self.b_dec_bin,
+                            "L_oi": self.L_oi, "L_hi": self.L_hi, "b_i": self.b_i,
+                            "L_oc": self.L_oc, "L_hc": self.L_hc, "b_c": self.b_c,
+                            "L_of": self.L_of, "L_hf": self.L_hf, "b_f": self.b_f,
+                            "L_oout": self.L_oout, "L_hout": self.L_hout, "b_out": self.b_out}
 
         # Initialize the optimizer
         if optimizer is None:
@@ -251,26 +251,16 @@ class Variational_LSTM(object):
         ####################################################################
         ####################################################################
         # Test values
-        self.debug_mode = False
+        self.debug_mode = True
         if self.debug_mode:
             # Since we mix shared variables and test_value,
             # we absolutely need to use the same dimensions for the test_values
-            self.num_batches_test = 3  # We can choose any value here
-            self.orch.tag.test_value = np.random.rand(self.num_batches_test, orch_dim)
-            self.piano.tag.test_value = np.random.rand(self.num_batches_test, piano_dim)
+            self.num_batches_test = 50  # We can choose any value here
+            self.orch.tag.test_value = orch_debug
+            self.piano.tag.test_value = piano_debug
         ####################################################################
         ####################################################################
         ####################################################################
-
-    def Gaussian_sample(self, mu, sig):
-
-        epsilon = self.theano_rng.normal(size=(mu.shape),
-                                         avg=0., std=1.,
-                                         dtype=mu.dtype)
-        z = mu + sig * epsilon
-        import pdb; pdb.set_trace()
-        theano.printing.pydotprint(z, outfile="aaa.png")
-        return z
 
     def lstm_prop(self, o_t, c_tm1, h_tm1):
         # Input gate
@@ -287,19 +277,20 @@ class Variational_LSTM(object):
 
         return h_t, c_t
 
-    def inference(self, o, p):
+    def inference(self, o, p, seq_length):
         # Infering z_t sequence from orch_t and piano_t
         #   (under both prior AND q distribution)
 
         # Initialize h_0 and c_0 states
-        # h_0 = shared_zeros(self.h_dim)
-        # c_0 = shared_zeros(self.h_dim)
         h_0 = T.zeros((self.h_dim,))
-        c_0 = T.zeros(self.h_dim)
+        c_0 = T.zeros((self.h_dim,))
         # Test values
         if self.debug_mode:
             h_0.tag.test_value = np.zeros((self.h_dim,), dtype=theano.config.floatX)
             c_0.tag.test_value = np.zeros((self.h_dim), dtype=theano.config.floatX)
+
+        # Random mask for gaussian sampling
+        epsilon = self.theano_rng.normal(size=(seq_length, self.z_dim), avg=0., std=1., dtype=theano.config.floatX)
 
         # Orch network
         o_1 = propup_linear(o, self.W_o1, self.b_o1)
@@ -313,7 +304,7 @@ class Variational_LSTM(object):
         p_3 = propup_relu(p_2, self.W_p3, self.b_p3)
         p_4 = propup_relu(p_3, self.W_p4, self.b_p4)
 
-        def inner_fn(o_t, p_t, h_tm1, c_tm1):
+        def inner_fn(o_t, p_t, epsilon_t, h_tm1, c_tm1):
             # This inner function describes one step of the recurrent process
             # Prior
             input_prior = T.concatenate([p_t, h_tm1])
@@ -335,13 +326,7 @@ class Variational_LSTM(object):
 
             # Why not directly normal(prior_mu_t, prior_sig_t) ?
             # Because theano can't handle nodes as parameters of a RandomStream
-            epsilon_t = self.theano_rng.normal(size=(self.z_dim,), avg=0., std=1., dtype=theano.config.floatX)
-            z_t_2 = prior_mu_t + prior_sig_t * epsilon_t
-            # # Prevent gradient optimization through z
-            z_t = G.disconnected_grad(z_t_2)
-            import pdb; pdb.set_trace()
-            theano.printing.pydotprint(z_t, 'z_t.html')
-            theano.printing.pydotprint(z_t_2, 'z_t_2.html')
+            z_t = prior_mu_t + prior_sig_t * epsilon_t
 
             # Compute Z network
             z_1_t = propup_relu(z_t, self.W_z1, self.b_z1)
@@ -352,18 +337,17 @@ class Variational_LSTM(object):
             # Compute new recurrent hidden state
             input_lstm = T.concatenate([o_t, z_4_t])
             h_t, c_t = self.lstm_prop(input_lstm, c_tm1, h_tm1)
-
-            return h_t, c_t, enc_mu_t, enc_sig_t, prior_mu_t, prior_sig_t, z_4_t, z_t
+            return h_t, c_t, enc_mu_t, enc_sig_t, prior_mu_t, prior_sig_t, z_4_t
 
         # Scan through input sequence
-        ((h, c, enc_mu, enc_sig, prior_mu, prior_sig, z_4, z), updates) =\
+        ((h_seq, c_seq, enc_mu, enc_sig, prior_mu, prior_sig, z_4), updates) =\
             theano.scan(fn=inner_fn,
-                        sequences=[o_4, p_4],
-                        outputs_info=[h_0, c_0, None, None, None, None, None, None])
+                        sequences=[o_4, p_4, epsilon],
+                        outputs_info=[h_0, c_0, None, None, None, None, None])
 
         # Reconstruction from inferred z_t
         # Can be performed after scanning, which is computationally more efficient
-        input_dec = T.concatenate([z_4, p_4, h], axis=1)
+        input_dec = T.concatenate([z_4, p_4, h_seq], axis=1)
         dec_1 = propup_relu(input_dec, self.W_dec1, self.b_dec1)
         dec_2 = propup_relu(dec_1, self.W_dec2, self.b_dec2)
         dec_3 = propup_relu(dec_2, self.W_dec3, self.b_dec3)
@@ -374,95 +358,72 @@ class Variational_LSTM(object):
         #   - prior : p(z_t) (w/ reparametrization trick, just pass mu and sigma)
         #   - approx inference : q(z_t|x_t)
         #   - reconstruction : p(x|z)
-        return (enc_mu, enc_sig, prior_mu, prior_sig, dec_bin, z), updates
+        return (enc_mu, enc_sig, prior_mu, prior_sig, dec_bin), updates
 
-    def compute_nll_upper_bound(self, validation=False):
+    def compute_nll_upper_bound(self, seq_length, validation=False):
         #############
         # Inference
-        (enc_mu, enc_sig, prior_mu, prior_sig, dec_bin, z), updates = \
-            self.inference(self.orch, self.piano)
+        (enc_mu, enc_sig, prior_mu, prior_sig, dec_bin), updates = \
+            self.inference(self.orch, self.piano, seq_length)
 
         #############
         # Cost
-        recon = T.sum(-T.nnet.binary_crossentropy(self.orch, dec_bin), axis=1)
+        dec_bin_non_zero = T.switch(dec_bin > 0, dec_bin, 1e-30)  # Avoid log zero
+        recon = T.sum(T.nnet.binary_crossentropy(dec_bin_non_zero, self.orch), axis=1)
         # binary_crossentropy = nll for binary input. Sum along input dimension, mean along time (i.e. batch)
         # for real-valued units, use GaussianNLL
         kl = KLGaussianGaussian(enc_mu, enc_sig, prior_mu, prior_sig)
         # Mean over batches
-        recon_term = recon.mean()
-        kl_term = kl.mean()
-        # neg log-lik upper bound
+        recon_term = T.mean(recon)
+        kl_term = T.mean(kl)
+        # Note that instead of maximazing the neg log-lik upper bound,
+        # We here minimize the log-lik upper bound
         cost = recon_term + kl_term
 
         if not validation:
             #############
             # Gradient
-            import pdb; pdb.set_trace()
-            gparams = G.grad(cost, self.params)
+            gparams = G.grad(cost, self.params_dico.values())
             #############
             # Updates
-            updates_train = self.optimizer.get_updates(self.params, gparams, updates)
+            updates_train = self.optimizer.get_updates(self.params_dico.values(), gparams, updates)
+            #############
+            # Cost
+            return cost, updates_train
         else:
-            updates_train = {}
+            return cost, recon_term, kl_term, dec_bin, updates
 
-        #############
-        # Monitor training
-        # We use, as in Bengio a dictionary
-        monitor = OrderedDict()
-        # does the upper bound decrease ?
-        monitor['nll_upper_bound'] = cost
+    def cost_updates(self, seq_length):
+        import pdb; pdb.set_trace()
+        cost, updates_train = self.compute_nll_upper_bound(seq_length=seq_length, validation=False)
+        return cost, updates_train
 
-        if validation:
-            # If validation, compute more monitoring values
-            monitor['recon_term'] = recon_term
-            monitor['kl_term'] = kl_term
-
-            # Original values
-            max_orch = self.orch.max()
-            mean_orch = self.orch.mean()
-            min_orch = self.orch.min()
-            monitor['max_orch'] = max_orch
-            monitor['mean_orch'] = mean_orch
-            monitor['min_orch'] = min_orch
-
-            # Reconstructed distribution
-            max_recon_orch_bin = dec_bin.max()
-            mean_recon_orch_bin = dec_bin.mean()
-            min_recon_orch_bin = dec_bin.min()
-            monitor['max_recon_orch_bin'] = max_recon_orch_bin
-            monitor['mean_recon_orch_bin'] = mean_recon_orch_bin
-            monitor['min_recon_orch_bin'] = min_recon_orch_bin
-
-        # Cost is in monitor
-        return monitor, updates_train
-
-    def cost_updates(self):
-        monitor, updates_train = self.compute_nll_upper_bound(validation=False)
-        return monitor, updates_train
-
-    def validation(self):
+    def validation(self, seq_length):
         # Validation = computing the nll upper bound on the validation set
         # So this function simply is a wrapper of cost_update function w/ no updates
-        monitor, updates_valid = self.compute_nll_upper_bound(validation=True)
+        cost, recon_term, kl_term, dec_bin, updates_valid = self.compute_nll_upper_bound(seq_length=seq_length, validation=True)
         # Generate an orchestral sequence
-        o, dec_bin, prior_mu, prior_sig, updates = self.generate(self.piano)
+        o, dec_bin, prior_mu, prior_sig, updates = self.generate(self.piano, seq_length)
         updates_valid.update(updates)
         # Compute the model accuracy
         # Note that this is really different from the accuracy for the cRBM, since it is evaluated on a sequence and
         # that the past orchestration is not re-initialized at each prediction
         accuracy = accuracy_measure(self.orch, o)
-        return monitor, accuracy, updates_valid
+        return cost, recon_term, kl_term, dec_bin, accuracy, updates_valid
 
-    def generation(self):
-        o, _, _, _, updates = self.generate(self.piano)
+    def generation(self, seq_length):
+        # seq_length must have the same length as self.piano.shape[0]
+        o, _, _, _, updates = self.generate(self.piano, seq_length)
         return o, updates
 
-    def generate(self, p):
+    def generate(self, p, seq_length):
         # Genreate an orchestral sequence given a piano sequence
 
         # Initialize h_0 and c_0 states
         h_0 = T.zeros((self.h_dim,))
         c_0 = T.zeros((self.h_dim,))
+
+        epsilon = self.theano_rng.normal(size=(seq_length, self.z_dim), avg=0., std=1., dtype=theano.config.floatX)
 
         # First, compute the piano parametrization
         # Piano network
@@ -471,7 +432,7 @@ class Variational_LSTM(object):
         p_3 = propup_relu(p_2, self.W_p3, self.b_p3)
         p_4 = propup_relu(p_3, self.W_p4, self.b_p4)
 
-        def inner_fn(p_t, h_tm1, c_tm1):
+        def inner_fn(p_t, epsilon_t, h_tm1, c_tm1):
             # This inner function describes one step of the recurrent process
             # z from prior
             input_prior = T.concatenate([p_t, h_tm1])
@@ -485,7 +446,6 @@ class Variational_LSTM(object):
             # Why not directly normal(prior_mu_t, prior_sig_t) ?
             # Because theano can't handle nodes as parameters of a RandomStream :
             # It will try to optimize through the random stream
-            epsilon_t = self.theano_rng.normal(size=(self.z_dim,), avg=0., std=1., dtype=theano.config.floatX)
             z_t = prior_mu_t + prior_sig_t * epsilon_t
 
             # z network
@@ -500,7 +460,7 @@ class Variational_LSTM(object):
             dec_2 = propup_relu(dec_1, self.W_dec2, self.b_dec2)
             dec_3 = propup_relu(dec_2, self.W_dec3, self.b_dec3)
             dec_4 = propup_relu(dec_3, self.W_dec4, self.b_dec4)
-            dec_bin_t = propup_sigmoid(dec_4, self.W_dec_bin_t, self.b_dec_bin)
+            dec_bin_t = propup_sigmoid(dec_4, self.W_dec_bin, self.b_dec_bin)
 
             o_t = self.theano_rng.binomial(n=1, p=dec_bin_t)
 
@@ -518,7 +478,21 @@ class Variational_LSTM(object):
 
         ((h, c, o, dec_bin, prior_mu, prior_sig), updates) =\
             theano.scan(fn=inner_fn,
-                        sequences=[p_4],
+                        sequences=[p_4, epsilon],
                         outputs_info=[h_0, c_0, None, None, None, None])
 
         return o, dec_bin, prior_mu, prior_sig, updates
+
+    def dump_weights(self, directory='DEBUG/dump_weights/'):
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        # Write all the weights in a csv file
+        for name, param in self.params_dico.items():
+            filename = directory + name + ".csv"
+            plot_param = param.get_value()
+            # Check for NaN values
+            if np.sum(np.isnan(plot_param)):
+                print("NaN value for param " + name)
+            # Round at 1e-5
+            plot_param = np.round_(plot_param, decimals=5)
+            np.savetxt(filename, plot_param, delimiter=",")

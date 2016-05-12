@@ -83,6 +83,7 @@ def train(params, dataset, temporal_granularity, log_file_path):
     # Get dimensions
     orch_dim = orch.get_value(borrow=True).shape[1]
     piano_dim = piano.get_value(borrow=True).shape[1]
+    batch_size = train_index.shape[1]
 
     # allocate symbolic variables for the data
     index = T.lvector()             # index to a [mini]batch
@@ -108,6 +109,11 @@ def train(params, dataset, temporal_granularity, log_file_path):
     lstm_dim = {}
     lstm_dim['cell_dim'] = n_c
 
+    # DEBUG ####
+    orch_debug = orch.get_value()[train_index[2]]
+    piano_debug = piano.get_value()[[train_index[2]]]
+    ##########################
+
     model = Variational_LSTM(orch=o,          # sequences as Theano matrices
                              piano=p,         # sequences as Theano matrices
                              units_dim=units_dim,
@@ -116,29 +122,36 @@ def train(params, dataset, temporal_granularity, log_file_path):
                              weights=None,
                              optimizer=optimizer,
                              numpy_rng=None,
-                             theano_rng=None
+                             theano_rng=None,
+                             orch_debug=orch_debug,
+                             piano_debug=piano_debug
                              )
 
     ########################################
     # Get symbolic graphs
     ########################################
     # get the cost and the gradient corresponding to one step of CD-15
-    monitor_train, updates_train = model.cost_updates()
-    monitor_val, accuracy, updates_valid = model.validation()
+    cost_train, updates_train = model.cost_updates(batch_size)
+    cost_val, recon_term_val, kl_term_val, dec_bin_val, accuracy_val, updates_valid = model.validation(batch_size)
+    # Grad problem with RandomStream ->
+    # Definition of a random mask for the whole sequence before the scan function ->
+    # We have to know the size of a batch before compiling it ->
+    # Build a different graph for different sequences length...
+    # So shitty///
 
     ########################################
     # Compile theano functions
     ########################################
     # the purpose of train_crbm is solely to update the CRBM parameters
     train_vlstm = theano.function(inputs=[index],
-                                  outputs=[monitor_train],
+                                  outputs=[cost_train],
                                   updates=updates_train,
                                   givens={o: orch[index],
                                           p: piano[index]},
                                   name='train_vlstm')
 
     validation_error = theano.function(inputs=[index],
-                                       outputs=[monitor_val, accuracy],
+                                       outputs=[cost_val, recon_term_val, kl_term_val, dec_bin_val, accuracy_val],
                                        updates=updates_valid,
                                        givens={o: orch[index],
                                                p: piano[index]},
@@ -149,15 +162,16 @@ def train(params, dataset, temporal_granularity, log_file_path):
     OVERFITTING = False
     val_order = 4
     val_tab = np.zeros(val_order)
+
     while (not OVERFITTING):
         # go through the training set
         train_cost_epoch = []
         for ind_batch in train_index:
             # Train
-            this_monitor = train_vlstm(ind_batch)
+            this_cost = train_vlstm(ind_batch)
+            model.dump_weights()
             # Keep track of MONITORING cost
-            nll_upper_bound = this_monitor['nll_upper_bound']
-            train_cost_epoch += [nll_upper_bound]
+            train_cost_epoch += [this_cost]
 
         if (epoch % 5 == 0):
             # Validation
@@ -165,17 +179,18 @@ def train(params, dataset, temporal_granularity, log_file_path):
             nll_upper_bound_val, recon_term, kl_term, max_orch, mean_orch, min_orch, \
                 max_recon_orch_bin, mean_recon_orch_bin, min_recon_orch_bin = (0,) * 9
             for ind_batch in val_index:
-                monitor_val, acc = validation_error(ind_batch)
+                cost_val, recon_term, kl_term, dec_bin, accuracy_val = validation_error(ind_batch)
+                acc = 100 * np.mean(accuracy_val)
                 acc_store += [acc]
-                nll_upper_bound_val += monitor_val['nll_upper_bound_val']
-                recon_term += monitor_val['recon_term']
-                kl_term += monitor_val['kl_term']
-                max_orch += monitor_val['max_orch']
-                mean_orch += monitor_val['mean_orch']
-                min_orch += monitor_val['min_orch']
-                max_recon_orch_bin += monitor_val['max_recon_orch_bin']
-                mean_recon_orch_bin += monitor_val['mean_recon_orch_bin']
-                min_recon_orch_bin += monitor_val['min_recon_orch_bin']
+                nll_upper_bound_val += cost_val
+                recon_term += recon_term
+                kl_term += kl_term
+                max_orch += orch[ind_batch].max()
+                mean_orch += orch[ind_batch].mean()
+                min_orch += orch[ind_batch].min()
+                max_recon_orch_bin += dec_bin[ind_batch].max()
+                mean_recon_orch_bin += dec_bin[ind_batch].mean()
+                min_recon_orch_bin += dec_bin[ind_batch].min()
 
             # Stop if validation error decreased over the last three validation
             # "FIFO" from the left
@@ -223,9 +238,3 @@ def train(params, dataset, temporal_granularity, log_file_path):
     dico_res['accuracy': score]
 
     return score, dico_res
-
-
-def create_past_vector(piano, orch, batch_size, delay, orch_dim):
-    orch_reshape = T.reshape(orch, (batch_size, delay * orch_dim))
-    past = T.concatenate((piano, orch_reshape), axis=1)
-    return past
