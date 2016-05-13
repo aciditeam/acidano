@@ -1,22 +1,84 @@
+#!/usr/bin/env python
+# -*- coding: utf8 -*-
+
 import theano.tensor as T
 import theano
 import numpy as np
-
-import os
-import sys
-import timeit
-
-import theano
-import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
+from acidano.utils.optim import rmsprop
 
-from logistic_sgd import load_data
-from utils import tile_raster_images
 
-try:
-    import PIL.Image as Image
-except ImportError:
-    import Image
+class HiddenLayer(object):
+    def __init__(self, rng, input, n_in, n_out, W=None, b=None,
+                 activation=T.tanh):
+        """
+        Typical hidden layer of a MLP: units are fully-connected and have
+        sigmoidal activation function. Weight matrix W is of shape (n_in,n_out)
+        and the bias vector b is of shape (n_out,).
+
+        NOTE : The nonlinearity used here is tanh
+
+        Hidden unit activation is given by: tanh(dot(input,W) + b)
+
+        :type rng: numpy.random.RandomState
+        :param rng: a random number generator used to initialize weights
+
+        :type input: theano.tensor.dmatrix
+        :param input: a symbolic tensor of shape (n_examples, n_in)
+
+        :type n_in: int
+        :param n_in: dimensionality of input
+
+        :type n_out: int
+        :param n_out: number of hidden units
+
+        :type activation: theano.Op or function
+        :param activation: Non linearity to be applied in the hidden
+                           layer
+        """
+        self.input = input
+        # end-snippet-1
+
+        # `W` is initialized with `W_values` which is uniformely sampled
+        # from sqrt(-6./(n_in+n_hidden)) and sqrt(6./(n_in+n_hidden))
+        # for tanh activation function
+        # the output of uniform if converted using asarray to dtype
+        # theano.config.floatX so that the code is runable on GPU
+        # Note : optimal initialization of weights is dependent on the
+        #        activation function used (among other things).
+        #        For example, results presented in [Xavier10] suggest that you
+        #        should use 4 times larger initial weights for sigmoid
+        #        compared to tanh
+        #        We have no info for other function, so we use the same as
+        #        tanh.
+        if W is None:
+            W_values = np.asarray(
+                rng.uniform(
+                    low=-np.sqrt(6. / (n_in + n_out)),
+                    high=np.sqrt(6. / (n_in + n_out)),
+                    size=(n_in, n_out)
+                ),
+                dtype=theano.config.floatX
+            )
+            if activation == theano.tensor.nnet.sigmoid:
+                W_values *= 4
+
+            W = theano.shared(value=W_values, name='W', borrow=True)
+
+        if b is None:
+            b_values = np.zeros((n_out,), dtype=theano.config.floatX)
+            b = theano.shared(value=b_values, name='b', borrow=True)
+
+        self.W = W
+        self.b = b
+
+        lin_output = T.dot(input, self.W) + self.b
+        self.output = (
+            lin_output if activation is None
+            else activation(lin_output)
+        )
+        # parameters of the model
+        self.params = [self.W, self.b]
 
 
 class dA(object):
@@ -45,7 +107,7 @@ class dA(object):
 
     def __init__(
         self,
-        numpy_rng,
+        numpy_rng=None,
         theano_rng=None,
         input=None,
         n_visible=784,
@@ -106,8 +168,10 @@ class dA(object):
         self.batch_size
 
         # create a Theano random generator that gives symbolic random values
+        if not numpy_rng:
+            numpy_rng = numpy_rng.randint(2 ** 30)
         if not theano_rng:
-            theano_rng = RandomStreams(numpy_rng.randint(2 ** 30))
+            theano_rng = RandomStreams(numpy_rng)
 
         # note : W' was written as `W_prime` and b' as `b_prime`
         if not W:
@@ -116,10 +180,10 @@ class dA(object):
             # 4*sqrt(6./(n_hidden+n_visible))the output of uniform if
             # converted using asarray to dtype
             # theano.config.floatX so that the code is runable on GPU
-            initial_W = numpy.asarray(
+            initial_W = np.asarray(
                 numpy_rng.uniform(
-                    low=-4 * numpy.sqrt(6. / (n_hidden + n_visible)),
-                    high=4 * numpy.sqrt(6. / (n_hidden + n_visible)),
+                    low=-4 * np.sqrt(6. / (n_hidden + n_visible)),
+                    high=4 * np.sqrt(6. / (n_hidden + n_visible)),
                     size=(n_visible, n_hidden)
                 ),
                 dtype=theano.config.floatX
@@ -128,7 +192,7 @@ class dA(object):
 
         if not bvis:
             bvis = theano.shared(
-                value=numpy.zeros(
+                value=np.zeros(
                     n_visible,
                     dtype=theano.config.floatX
                 ),
@@ -137,7 +201,7 @@ class dA(object):
 
         if not bhid:
             bhid = theano.shared(
-                value=numpy.zeros(
+                value=np.zeros(
                     n_hidden,
                     dtype=theano.config.floatX
                 ),
@@ -215,7 +279,7 @@ class dA(object):
         # Cross-entropy
         # L = - T.sum(self.x * T.log(z) + (1 - self.x) * T.log(1 - z), axis=1)
         # L2
-        L = - T.sum((self.x - self.z) ** 2, axis=1)
+        L = - T.sum((self.x - z) ** 2, axis=1)
         # Take the mean
         cost = T.mean(L)
 
@@ -229,163 +293,3 @@ class dA(object):
                               momentum)
 
         return (cost, updates)
-
-
-def train_stacked_da(learning_rate, training_epochs,
-                     dataset,
-                     batch_size=100, output_folder='dA_plots'):
-
-    """
-    This demo is tested on MNIST
-
-    :type learning_rate: float
-    :param learning_rate: learning rate used for training the DeNosing
-                          AutoEncoder
-
-    :type training_epochs: int
-    :param training_epochs: number of epochs used for training
-
-    :type dataset: string
-    :param dataset: path to the picked dataset
-
-    """
-    datasets = load_data(dataset)
-    train_set_x, train_set_y = datasets[0]
-
-    # compute number of minibatches for training, validation and testing
-    n_train_batches = train_set_x.get_value(borrow=True).shape[0] // batch_size
-
-    # start-snippet-2
-    # allocate symbolic variables for the data
-    index = T.lscalar()    # index to a [mini]batch
-    x = T.matrix('x')  # the data is presented as rasterized images
-    # end-snippet-2
-
-    if not os.path.isdir(output_folder):
-        os.makedirs(output_folder)
-    os.chdir(output_folder)
-
-    ####################################
-    # BUILDING THE MODEL NO CORRUPTION #
-    ####################################
-
-    rng = numpy.random.RandomState(123)
-    theano_rng = RandomStreams(rng.randint(2 ** 30))
-
-    da = dA(
-        numpy_rng=rng,
-        theano_rng=theano_rng,
-        input=x,
-        n_visible=28 * 28,
-        n_hidden=500
-    )
-
-    cost, updates = da.get_cost_updates(
-        corruption_level=0.,
-        learning_rate=learning_rate
-    )
-
-    train_da = theano.function(
-        [index],
-        cost,
-        updates=updates,
-        givens={
-            x: train_set_x[index * batch_size: (index + 1) * batch_size]
-        }
-    )
-
-    start_time = timeit.default_timer()
-
-    ############
-    # TRAINING #
-    ############
-
-    # go through training epochs
-    for epoch in range(training_epochs):
-        # go through trainng set
-        c = []
-        for batch_index in range(n_train_batches):
-            c.append(train_da(batch_index))
-
-        print('Training epoch %d, cost ' % epoch, numpy.mean(c))
-
-    end_time = timeit.default_timer()
-
-    training_time = (end_time - start_time)
-
-    print(('The no corruption code for file ' +
-           os.path.split(__file__)[1] +
-           ' ran for %.2fm' % ((training_time) / 60.)), file=sys.stderr)
-    image = Image.fromarray(
-        tile_raster_images(X=da.W.get_value(borrow=True).T,
-                           img_shape=(28, 28), tile_shape=(10, 10),
-                           tile_spacing=(1, 1)))
-    image.save('filters_corruption_0.png')
-
-    # start-snippet-3
-    #####################################
-    # BUILDING THE MODEL CORRUPTION 30% #
-    #####################################
-
-    rng = numpy.random.RandomState(123)
-    theano_rng = RandomStreams(rng.randint(2 ** 30))
-
-    da = dA(
-        numpy_rng=rng,
-        theano_rng=theano_rng,
-        input=x,
-        n_visible=28 * 28,
-        n_hidden=500
-    )
-
-    cost, updates = da.get_cost_updates(
-        corruption_level=0.3,
-        learning_rate=learning_rate
-    )
-
-    train_da = theano.function(
-        [index],
-        cost,
-        updates=updates,
-        givens={
-            x: train_set_x[index * batch_size: (index + 1) * batch_size]
-        }
-    )
-
-    start_time = timeit.default_timer()
-
-    ############
-    # TRAINING #
-    ############
-
-    # go through training epochs
-    for epoch in range(training_epochs):
-        # go through trainng set
-        c = []
-        for batch_index in range(n_train_batches):
-            c.append(train_da(batch_index))
-
-        print('Training epoch %d, cost ' % epoch, numpy.mean(c))
-
-    end_time = timeit.default_timer()
-
-    training_time = (end_time - start_time)
-
-    print(('The 30% corruption code for file ' +
-           os.path.split(__file__)[1] +
-           ' ran for %.2fm' % (training_time / 60.)), file=sys.stderr)
-    # end-snippet-3
-
-    # start-snippet-4
-    image = Image.fromarray(tile_raster_images(
-        X=da.W.get_value(borrow=True).T,
-        img_shape=(28, 28), tile_shape=(10, 10),
-        tile_spacing=(1, 1)))
-    image.save('filters_corruption_30.png')
-    # end-snippet-4
-
-    os.chdir('../')
-
-
-if __name__ == '__main__':
-    test_dA()
