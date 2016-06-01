@@ -80,6 +80,9 @@ class HiddenLayer(object):
         # parameters of the model
         self.params = [self.W, self.b]
 
+    def mse_reconstruction(self):
+        return -T.mean(T.log(self.p_y_given_x)[T.arange(y.shape[0]), y])
+
 
 class dA(object):
     """Denoising Auto-Encoder class (dA)
