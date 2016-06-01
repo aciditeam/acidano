@@ -7,6 +7,9 @@
 # Use :
 #   python numpy_csv_visualization name_of_the_csv_file.csv
 
+# Easiest way to use it is to copy the html file in a desired location and copy this script,
+# modifying it to fit the paths
+
 import sys
 import os
 import shutil
@@ -16,13 +19,11 @@ import acidano.visualization.numpy_array.dumped_numpy_to_csv as dtc
 
 MAIN_DIR = os.getcwd().decode('utf8') + u'/'
 
-HTML_DIR = MAIN_DIR + u'visualization/numpy_array/'
+HTML_DIR = MAIN_DIR
 
 path_to_csv = MAIN_DIR + sys.argv[1]  # Relative path to the CSV file containing the data
-local_file = MAIN_DIR + 'Visualization/numpy_array/dump.csv'
-shutil.copy(path_to_csv, local_file)
 
-dtc.dump_to_csv(path_to_data=local_file, save_path=HTML_DIR + u'data.csv')
+dtc.dump_to_csv(path_to_data=path_to_csv, save_path=HTML_DIR + u'data.csv')
 
 if _platform == "linux" or _platform == "linux2":
     # Linux
