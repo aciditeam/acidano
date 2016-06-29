@@ -103,6 +103,8 @@ def read_midi(song_path, quantization):
                         notes_on[channel] = []
                     notes_on[channel].append((pitch, velocity, time_pr))
                 elif velocity == 0:
+                    if channel not in notes_on.keys():
+                        raise Exception("First note of channel " + str(channel) + ' is a note off')
                     add_note_to_pr((pitch, velocity, time_pr), notes_on[channel], pr)
             # Note off
             elif message.type == 'note_off':
@@ -112,7 +114,7 @@ def read_midi(song_path, quantization):
                 time = float(message.time)
                 init_channel_time(channel)
                 time_counter[channel] += (time / ticks_per_beat) * quantization
-                time_pr = int(time_counter)
+                time_pr = int(time_counter[channel])
                 add_note_to_pr((pitch, velocity, time_pr), notes_on[channel], pr)
 
         if np.sum(np.sum(pr)) > 0:
@@ -124,6 +126,7 @@ def read_midi(song_path, quantization):
 if __name__ == '__main__':
     song_path = 'test.mid'
     pianoroll = read_midi(song_path, 12)
+    import pdb; pdb.set_trace()
     for name_instru in pianoroll.keys():
         np.savetxt(name_instru + '.csv', pianoroll[name_instru], delimiter=',')
         dump_to_csv(name_instru + '.csv', name_instru + '.csv')
