@@ -32,7 +32,12 @@
     <svg class="graph"></svg>
     <script src=" http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
     <script>
-        var dataname = 'Preludio ed Allegro'
+        var dataname = 'unnamed0'
+
+        var zoom = d3.behavior.zoom()
+            .scaleExtent([1, 10])
+            .on("zoom", zoomed);
+
         var width = window.innerWidth - 20,
             height = window.innerHeight - 20;
         margin = {
@@ -62,7 +67,8 @@
 
         var graph = d3.select(".graph")
             .attr("width", width)
-            .attr("height", height);
+            .attr("height", height)
+            .call(zoom);
 
         // Load data
         var filename = dataname.concat('.csv');
@@ -203,5 +209,10 @@
             d.z = +d.z;
             return d;
         }
+
+        function zoomed() {
+          graph.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
+        }
+
     </script>
 </body>

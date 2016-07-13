@@ -18,27 +18,19 @@ def get_total_num_tick(song_path):
     mid = MidiFile(song_path)
 
     # Parse track by track
-    num_ticks = []
+    num_ticks = 0
     for i, track in enumerate(mid.tracks):
-        tick_counter = {}
+        tick_counter = 0
         for message in track:
             # Note on
-            if message.type == 'note_on' or message.type =='note_off':
-                channel = message.channel
-                time = float(message.time)
-                if channel not in tick_counter.keys():
-                    tick_counter[channel] = 0
-                tick_counter[channel] += time
-        if len(tick_counter) != 0:  # Avoid metadata tracks
-            num_ticks.append(max(tick_counter.values()))
-    num_ticks = set(num_ticks)
-    return max(num_ticks)
+            time = float(message.time)
+            tick_counter += time
+        num_ticks = max(num_ticks, tick_counter)
+    return num_ticks
 
 
-def read_midi(song_path, quantization):
-    # Read a midi file and return a dictionnary {track_name : pianoroll}
+def get_time(song_path, quantization):
     mid = MidiFile(song_path)
-
     # Tick per beat
     ticks_per_beat = mid.ticks_per_beat
     # Total number of ticks
@@ -46,6 +38,17 @@ def read_midi(song_path, quantization):
 
     # Dimensions of the pianoroll for each track
     T_pr = int((total_num_tick / ticks_per_beat) * quantization)
+
+    return T_pr
+
+
+def read_midi(song_path, quantization):
+    # Read a midi file and return a dictionnary {track_name : pianoroll}
+    mid = MidiFile(song_path)
+    # Tick per beat
+    ticks_per_beat = mid.ticks_per_beat
+
+    T_pr = get_time(song_path, quantization)
     N_pr = 128
     pianoroll = {}
 
@@ -68,65 +71,55 @@ def read_midi(song_path, quantization):
         return
 
     # Parse track by track
+    counter_unnamed_track = 0
     for i, track in enumerate(mid.tracks):
         # Instanciate the pianoroll
         pr = np.zeros([T_pr, N_pr])
-        time_counter = {}
-        notes_on = {}
+        time_counter = 0
+        notes_on = []
         for message in track:
+            print message
+            # Time. Must be incremented, whether it is a note on/off or not
+            time = float(message.time)
+            time_counter += time / ticks_per_beat * quantization
+            # Time in pr (mapping)
+            time_pr = int(time_counter)
             # Note on
-            def init_channel_time(channel):
-                if channel not in time_counter.keys():
-                    # The counter of a new channel has to be initialized at the value of the other counters
-                    if len(time_counter) == 0:
-                        time_counter[channel] = 0
-                    else:
-                        rand_key = time_counter.keys()[0]
-                        time_counter[channel] = time_counter[rand_key]
-                    return
             if message.type == 'note_on':
-                # Get channel
-                channel = message.channel
                 # Get pitch
                 pitch = message.note
                 # Get velocity
                 velocity = message.velocity
-                # Time
-                time = float(message.time)
-                # Time counter for each channel
-                init_channel_time(channel)
-                time_counter[channel] += time / ticks_per_beat * quantization
-                # Time in pr (mapping)
-                time_pr = int(time_counter[channel])
                 if velocity > 0:
-                    if channel not in notes_on.keys():
-                        notes_on[channel] = []
-                    notes_on[channel].append((pitch, velocity, time_pr))
+                    notes_on.append((pitch, velocity, time_pr))
                 elif velocity == 0:
-                    if channel not in notes_on.keys():
-                        raise Exception("First note of channel " + str(channel) + ' is a note off')
-                    add_note_to_pr((pitch, velocity, time_pr), notes_on[channel], pr)
+                    add_note_to_pr((pitch, velocity, time_pr), notes_on, pr)
             # Note off
             elif message.type == 'note_off':
-                channel = message.channel
                 pitch = message.note
                 velocity = message.velocity
-                time = float(message.time)
-                init_channel_time(channel)
-                time_counter[channel] += (time / ticks_per_beat) * quantization
-                time_pr = int(time_counter[channel])
-                add_note_to_pr((pitch, velocity, time_pr), notes_on[channel], pr)
+                add_note_to_pr((pitch, velocity, time_pr), notes_on, pr)
 
+        # We deal with discrete values ranged between 0 and 127
+        #     -> convert to int
+        pr = pr.astype(np.int16)
         if np.sum(np.sum(pr)) > 0:
-            pianoroll[track.name] = pr
+            name = track.name
+            if name == u'':
+                name = 'unnamed' + str(counter_unnamed_track)
+                counter_unnamed_track += 1
+            if name in pianoroll.keys():
+                # Take max of the to pianorolls (lame solution;...)
+                pianoroll[name] = np.maximum(pr, pianoroll[name])
+            else:
+                pianoroll[name] = pr
 
     return pianoroll
 
 
 if __name__ == '__main__':
-    song_path = 'test.mid'
+    song_path = 'testt.mid'
     pianoroll = read_midi(song_path, 12)
-    import pdb; pdb.set_trace()
     for name_instru in pianoroll.keys():
         np.savetxt(name_instru + '.csv', pianoroll[name_instru], delimiter=',')
         dump_to_csv(name_instru + '.csv', name_instru + '.csv')

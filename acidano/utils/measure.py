@@ -7,7 +7,7 @@ import numpy as np
 
 def accuracy_measure(true_frame, pred_frame):
     # Checked w/ test_value -> ok
-    # true_frame must be a binary vector
+    # true_frame must be a matrix of binaries vectors
     true_positive = T.sum(pred_frame * true_frame, axis=1)
     false_negative = T.sum((1 - pred_frame) * true_frame, axis=1)
     false_positive = T.sum(pred_frame * (1 - true_frame), axis=1)
@@ -23,10 +23,15 @@ def accuracy_measure(true_frame, pred_frame):
 
 def accuracy_measure_not_shared(true_frame, pred_frame):
     # Checked w/ test_value -> ok
-    # true_frame must be a binary vector
-    true_positive = np.sum(pred_frame * true_frame, axis=1)
-    false_negative = np.sum((1 - pred_frame) * true_frame, axis=1)
-    false_positive = np.sum(pred_frame * (1 - true_frame), axis=1)
+    # Deal with one vector or a serie
+    # if len(true_frame.shape)
+    axis = 0
+    if(len(true_frame.shape)) > 1:
+        axis = 1
+
+    true_positive = np.sum(pred_frame * true_frame, axis=axis)
+    false_negative = np.sum((1 - pred_frame) * true_frame, axis=axis)
+    false_positive = np.sum(pred_frame * (1 - true_frame), axis=axis)
 
     quotient = true_positive + false_negative + false_positive
 

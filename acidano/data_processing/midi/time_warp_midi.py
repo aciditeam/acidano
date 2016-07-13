@@ -21,7 +21,7 @@ def time_warp(source_path, dest_path, ratio):
         mid_out.tracks.append(track_out)
         for message_in in track_in:
             time_in = message_in.time
-            time_out = int(time_in * ratio)
+            time_out = int(round(time_in * ratio))
             # For absolutely every message, just mutliply the time by the ratio
             message_out = message_in.copy(time=time_out)
             track_out.append(message_out)
