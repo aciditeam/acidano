@@ -1,0 +1,61 @@
+###############
+BOUCLE
+a = 109 b = 103
+Binary a&1 = 1 b&1 = 1
+a = 54 b = 51
+###############
+BOUCLE
+a = 54 b = 51
+Binary a&1 = 0 b&1 = 1
+a = 27 b = 25
+###############
+BOUCLE
+a = 27 b = 25
+Binary a&1 = 1 b&1 = 1
+a = 13 b = 12
+###############
+BOUCLE
+a = 13 b = 12
+Binary a&1 = 1 b&1 = 0
+a = 6 b = 6
+###############
+BOUCLE
+a = 6 b = 6
+Binary a&1 = 0 b&1 = 0
+a = 3 b = 3
+###############
+BOUCLE
+a = 3 b = 3
+Binary a&1 = 1 b&1 = 1
+a = 1 b = 1
+###############
+BOUCLE
+a = 1 b = 1
+Binary a&1 = 1 b&1 = 1
+a = 0 b = 0
+###############
+BOUCLE
+a = 0 b = 0
+Binary a&1 = 0 b&1 = 0
+a = 0 b = 0
+###############
+BOUCLE
+a = 0 b = 0
+Binary a&1 = 0 b&1 = 0
+a = 0 b = 0
+###############
+BOUCLE
+a = 0 b = 0
+Binary a&1 = 0 b&1 = 0
+a = 0 b = 0
+###############
+BOUCLE
+a = 0 b = 0
+Binary a&1 = 0 b&1 = 0
+a = 0 b = 0
+###############
+BOUCLE
+a = 0 b = 0
+Binary a&1 = 0 b&1 = 0
+a = 0 b = 0
+a = 0, b = 0, score = 4

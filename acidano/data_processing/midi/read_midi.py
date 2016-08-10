@@ -2,7 +2,10 @@
 # -*- coding: utf8 -*-
 
 from mido import MidiFile
+from write_midi import write_midi
 from acidano.visualization.numpy_array.dumped_numpy_to_csv import dump_to_csv
+from acidano.data_processing.utils.pianoroll_processing import get_pianoroll_time, clip_pr
+from acidano.data_processing.utils.time_warping import linear_warp_pr
 
 import numpy as np
 
@@ -10,116 +13,165 @@ import numpy as np
 # Pianorolls dims are  :   TIME  *  PITCH
 
 
-def get_total_num_tick(song_path):
-    # Midi length should be written in a meta message at the beginning of the file,
-    # but in many cases, lazy motherfuckers didn't write it...
+class Read_midi(object):
+    def __init__(self, song_path, quantization):
+        ## Metadata
+        self.__song_path = song_path
+        self.__quantization = quantization
 
-    # Read a midi file and return a dictionnary {track_name : pianoroll}
-    mid = MidiFile(song_path)
+        ## Pianoroll
+        self.pianoroll = None
+        self.__T_pr = None
 
-    # Parse track by track
-    num_ticks = 0
-    for i, track in enumerate(mid.tracks):
-        tick_counter = 0
-        for message in track:
-            # Note on
-            time = float(message.time)
-            tick_counter += time
-        num_ticks = max(num_ticks, tick_counter)
-    return num_ticks
+        ## Private misc
+        self.__num_ticks = None
+        self.__T_file = None
 
+    @property
+    def quantization(self):
+        return self.__quantization
 
-def get_time(song_path, quantization):
-    mid = MidiFile(song_path)
-    # Tick per beat
-    ticks_per_beat = mid.ticks_per_beat
-    # Total number of ticks
-    total_num_tick = get_total_num_tick(song_path)
+    @property
+    def T_pr(self):
+        return self.__T_pr
 
-    # Dimensions of the pianoroll for each track
-    T_pr = int((total_num_tick / ticks_per_beat) * quantization)
+    @property
+    def T_file(self):
+        return self.__T_file
 
-    return T_pr
+    @property
+    def pianoroll(self):
+        return self.__pianoroll
 
+    @pianoroll.setter
+    def pianoroll(self, pr):
+        # Ensure that the dimensions are always correct
+        if pr is None:
+            self.__pianoroll = None
+            return
+        T_pr = get_pianoroll_time(pr)
+        if T_pr:
+            self.__T_pr = T_pr
+            self.__pianoroll = pr
+        else:
+            self.__pianoroll = None
 
-def read_midi(song_path, quantization):
-    # Read a midi file and return a dictionnary {track_name : pianoroll}
-    mid = MidiFile(song_path)
-    # Tick per beat
-    ticks_per_beat = mid.ticks_per_beat
+    def get_total_num_tick(self):
+        # Midi length should be written in a meta message at the beginning of the file,
+        # but in many cases, lazy motherfuckers didn't write it...
 
-    T_pr = get_time(song_path, quantization)
-    N_pr = 128
-    pianoroll = {}
+        # Read a midi file and return a dictionnary {track_name : pianoroll}
+        mid = MidiFile(self.__song_path)
 
-    def add_note_to_pr(note_off, notes_on, pr):
-        pitch_off, _, time_off = note_off
-        # Note off : search for the note in the list of note on,
-        # get the start and end time
-        # write it in th pr
-        match_list = [(ind, item) for (ind, item) in enumerate(notes_on) if item[0] == pitch_off]
+        # Parse track by track
+        num_ticks = 0
+        for i, track in enumerate(mid.tracks):
+            tick_counter = 0
+            for message in track:
+                # Note on
+                time = float(message.time)
+                tick_counter += time
+            num_ticks = max(num_ticks, tick_counter)
+        self.__num_ticks = num_ticks
 
-        if len(match_list) == 0:
-            raise Exception("Try to note off a note that has never been turned on")
+    def get_time_file(self):
+        # Get the time dimension for a pianoroll given a certain quantization
+        mid = MidiFile(self.__song_path)
+        # Tick per beat
+        ticks_per_beat = mid.ticks_per_beat
+        # Total number of ticks
+        self.get_total_num_tick()
+        # Dimensions of the pianoroll for each track
+        self.__T_file = int((self.__num_ticks / ticks_per_beat) * self.__quantization)
 
-        # Add note to the pr
-        pitch, velocity, time_on = match_list[0][1]
-        pr[time_on:time_off, pitch] = velocity
-        # Remove the note from notes_on
-        ind_match = match_list[0][0]
-        del notes_on[ind_match]
-        return
+    def read_file(self):
+        # Read the midi file and return a dictionnary {track_name : pianoroll}
+        mid = MidiFile(self.__song_path)
+        # Tick per beat
+        ticks_per_beat = mid.ticks_per_beat
 
-    # Parse track by track
-    counter_unnamed_track = 0
-    for i, track in enumerate(mid.tracks):
-        # Instanciate the pianoroll
-        pr = np.zeros([T_pr, N_pr])
-        time_counter = 0
-        notes_on = []
-        for message in track:
-            print message
-            # Time. Must be incremented, whether it is a note on/off or not
-            time = float(message.time)
-            time_counter += time / ticks_per_beat * quantization
-            # Time in pr (mapping)
-            time_pr = int(time_counter)
-            # Note on
-            if message.type == 'note_on':
-                # Get pitch
-                pitch = message.note
-                # Get velocity
-                velocity = message.velocity
-                if velocity > 0:
-                    notes_on.append((pitch, velocity, time_pr))
-                elif velocity == 0:
+        # Get total time
+        self.get_time_file()
+        T_pr = self.__T_file
+        # Pitch dimension
+        N_pr = 128
+        pianoroll = {}
+
+        def add_note_to_pr(note_off, notes_on, pr):
+            pitch_off, _, time_off = note_off
+            # Note off : search for the note in the list of note on,
+            # get the start and end time
+            # write it in th pr
+            match_list = [(ind, item) for (ind, item) in enumerate(notes_on) if item[0] == pitch_off]
+            if len(match_list) == 0:
+                print("Try to note off a note that has never been turned on")
+                # Do nothing
+                return
+
+            # Add note to the pr
+            pitch, velocity, time_on = match_list[0][1]
+            pr[time_on:time_off, pitch] = velocity
+            # Remove the note from notes_on
+            ind_match = match_list[0][0]
+            del notes_on[ind_match]
+            return
+
+        # Parse track by track
+        counter_unnamed_track = 0
+        for i, track in enumerate(mid.tracks):
+            # Instanciate the pianoroll
+            pr = np.zeros([T_pr, N_pr])
+            time_counter = 0
+            notes_on = []
+            for message in track:
+                # print message
+                # Time. Must be incremented, whether it is a note on/off or not
+                time = float(message.time)
+                time_counter += time / ticks_per_beat * self.__quantization
+                # Time in pr (mapping)
+                time_pr = int(time_counter)
+                # Note on
+                if message.type == 'note_on':
+                    # Get pitch
+                    pitch = message.note
+                    # Get velocity
+                    velocity = message.velocity
+                    if velocity > 0:
+                        notes_on.append((pitch, velocity, time_pr))
+                    elif velocity == 0:
+                        add_note_to_pr((pitch, velocity, time_pr), notes_on, pr)
+                # Note off
+                elif message.type == 'note_off':
+                    pitch = message.note
+                    velocity = message.velocity
                     add_note_to_pr((pitch, velocity, time_pr), notes_on, pr)
-            # Note off
-            elif message.type == 'note_off':
-                pitch = message.note
-                velocity = message.velocity
-                add_note_to_pr((pitch, velocity, time_pr), notes_on, pr)
 
-        # We deal with discrete values ranged between 0 and 127
-        #     -> convert to int
-        pr = pr.astype(np.int16)
-        if np.sum(np.sum(pr)) > 0:
-            name = track.name
-            if name == u'':
-                name = 'unnamed' + str(counter_unnamed_track)
-                counter_unnamed_track += 1
-            if name in pianoroll.keys():
-                # Take max of the to pianorolls (lame solution;...)
-                pianoroll[name] = np.maximum(pr, pianoroll[name])
-            else:
-                pianoroll[name] = pr
-
-    return pianoroll
+            # We deal with discrete values ranged between 0 and 127
+            #     -> convert to int
+            pr = pr.astype(np.int16)
+            if np.sum(np.sum(pr)) > 0:
+                name = track.name
+                if name == u'':
+                    name = 'unnamed' + str(counter_unnamed_track)
+                    counter_unnamed_track += 1
+                if name in pianoroll.keys():
+                    # Take max of the to self.pianorolls (lame solution;...)
+                    pianoroll[name] = np.maximum(pr, pianoroll[name])
+                else:
+                    pianoroll[name] = pr
+        self.pianoroll = pianoroll
 
 
 if __name__ == '__main__':
-    song_path = 'testt.mid'
-    pianoroll = read_midi(song_path, 12)
-    for name_instru in pianoroll.keys():
-        np.savetxt(name_instru + '.csv', pianoroll[name_instru], delimiter=',')
-        dump_to_csv(name_instru + '.csv', name_instru + '.csv')
+    song_path = 'DEBUG/test.mid'
+    midifile = Read_midi(song_path, 12)
+    midifile.read_file()
+    pr = midifile.pianoroll
+    import pdb; pdb.set_trace()
+    pr_clip = clip_pr(pr)
+    pr_warped = linear_warp_pr(pr_clip, int(midifile.T_pr * 0.6))
+    write_midi(pr_warped, midifile.quantization, 'DEBUG/out.mid')
+    write_midi(midifile.pianoroll, midifile.quantization, 'DEBUG/out2.mid')
+    for name_instru in midifile.pianoroll.keys():
+        np.savetxt('DEBUG/' + name_instru + '.csv', midifile.pianoroll[name_instru], delimiter=',')
+        dump_to_csv('DEBUG/' + name_instru + '.csv', 'DEBUG/' + name_instru + '.csv')

@@ -231,8 +231,7 @@ def build_dico():
             ur"^\\new$",
             ur"^onbekend$",
             ur"unbekannt",
-            ur"^instru",
-            ur"^instrument",
+            # ur"^instru",
             ur"^\s*midi(file)?\s*[0-9_]*?$",
             ur"unbenannt",
             ur"musicxml",
@@ -296,7 +295,9 @@ def build_dico():
             ur"konzertflugel",
             ur"^[^a-z]*(manual|primo|secondo)?[^a-z]*" + hand_expr,
             ur"^[^a-z]*(LH|RH)[^a-z]*$",
-            ur"kboard"
+            ur"kboard",
+            # ur"Instrument(17|18|19)",
+            ur"Track (1|2|3|4)"
         ],
         u"piccolo": [
             ur"pic?coll?o(flote)?",

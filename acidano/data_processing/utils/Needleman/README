@@ -1,0 +1,6 @@
+# Needleman-Wunsch python wrapper
+
+Build .so file by running :
+python setup.py build
+
+Then move the .so file in the folder where the python script calling it is located.

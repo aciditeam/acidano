@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
+## Merge along time dimension
+
 import numpy as np
 from acidano.data_processing.midi.read_midi import read_midi, get_time
 from acidano.data_processing.midi.write_midi import write_midi
