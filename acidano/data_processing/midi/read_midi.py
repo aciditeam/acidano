@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
+from acidano.visualization.numpy_array.write_numpy_array_html import write_numpy_array_html
 from mido import MidiFile
 from write_midi import write_midi
+from acidano.data_processing.utils.pianoroll_processing import sum_along_instru_dim
 from acidano.visualization.numpy_array.dumped_numpy_to_csv import dump_to_csv
 from acidano.data_processing.utils.pianoroll_processing import get_pianoroll_time, clip_pr
 from acidano.data_processing.utils.time_warping import linear_warp_pr
+from subprocess import call
 
 import numpy as np
 
@@ -74,6 +77,20 @@ class Read_midi(object):
             num_ticks = max(num_ticks, tick_counter)
         self.__num_ticks = num_ticks
 
+    def get_pitch_range(self):
+        mid = MidiFile(self.__song_path)
+        min_pitch = 200
+        max_pitch = 0
+        for i, track in enumerate(mid.tracks):
+            for message in track:
+                if message.type in ['note_on', 'note_off']:
+                    pitch = message.note
+                    if pitch > max_pitch:
+                        max_pitch = pitch
+                    if pitch < min_pitch:
+                        min_pitch = pitch
+        return min_pitch, max_pitch
+
     def get_time_file(self):
         # Get the time dimension for a pianoroll given a certain quantization
         mid = MidiFile(self.__song_path)
@@ -83,6 +100,7 @@ class Read_midi(object):
         self.get_total_num_tick()
         # Dimensions of the pianoroll for each track
         self.__T_file = int((self.__num_ticks / ticks_per_beat) * self.__quantization)
+        return self.__T_file
 
     def read_file(self):
         # Read the midi file and return a dictionnary {track_name : pianoroll}
@@ -160,18 +178,27 @@ class Read_midi(object):
                 else:
                     pianoroll[name] = pr
         self.pianoroll = pianoroll
+        return pianoroll
 
 
 if __name__ == '__main__':
     song_path = 'DEBUG/test.mid'
-    midifile = Read_midi(song_path, 12)
-    midifile.read_file()
-    pr = midifile.pianoroll
-    import pdb; pdb.set_trace()
-    pr_clip = clip_pr(pr)
-    pr_warped = linear_warp_pr(pr_clip, int(midifile.T_pr * 0.6))
-    write_midi(pr_warped, midifile.quantization, 'DEBUG/out.mid')
-    write_midi(midifile.pianoroll, midifile.quantization, 'DEBUG/out2.mid')
-    for name_instru in midifile.pianoroll.keys():
-        np.savetxt('DEBUG/' + name_instru + '.csv', midifile.pianoroll[name_instru], delimiter=',')
-        dump_to_csv('DEBUG/' + name_instru + '.csv', 'DEBUG/' + name_instru + '.csv')
+    quantization = 12
+    midifile = Read_midi(song_path, quantization)
+    pr = midifile.read_file()
+
+    AAA = sum_along_instru_dim(pr)
+    AAA = AAA[0:quantization*12, :]
+    np.savetxt('DEBUG/temp.csv', AAA, delimiter=',')
+    dump_to_csv('DEBUG/temp.csv', 'DEBUG/temp.csv')
+    write_numpy_array_html("DEBUG/pr_aligned.html", "temp")
+    # call(["open", "DEBUG/numpy_vis.html"])
+
+    # pr_clip = clip_pr(pr)
+    # pr_warped = linear_warp_pr(pr_clip, int(midifile.T_pr * 0.6))
+
+    # write_midi(pr_warped, midifile.quantization, 'DEBUG/out.mid')
+    # write_midi(midifile.pianoroll, midifile.quantization, 'DEBUG/out2.mid')
+    # for name_instru in midifile.pianoroll.keys():
+    #     np.savetxt('DEBUG/' + name_instru + '.csv', midifile.pianoroll[name_instru], delimiter=',')
+    #     dump_to_csv('DEBUG/' + name_instru + '.csv', 'DEBUG/' + name_instru + '.csv')

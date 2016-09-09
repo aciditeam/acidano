@@ -3,13 +3,16 @@
 
 import theano
 import numpy as np
+from numpy.random import RandomState
 
 
 # Initialization functions
-def shared_normal(num_rows, num_cols, scale=1):
+def shared_normal(num_rows, num_cols, scale=1, rng=None):
     '''Initialize a matrix shared variable with normally distributed
     elements.'''
-    return theano.shared(np.random.normal(
+    if rng is None:
+        rng = RandomState(seed=np.random.randint(1 << 30))
+    return theano.shared(rng.normal(
         scale=scale, size=(num_rows, num_cols)).astype(theano.config.floatX))
 
 

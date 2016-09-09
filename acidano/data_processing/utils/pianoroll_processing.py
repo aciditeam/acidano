@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
+#
+# get_pianoroll_time
+# sum_along_instru_dim
+# get_first_last_non_zero
+# clip_pr
+# pitch_class
+# binary_pr
 
 import math
 import numpy as np
@@ -57,6 +64,7 @@ def pitch_class(pr):
     pr_red_bin = (pr_red > 0).astype(int)
 
     return pr_red_bin
+
 
 if __name__ == "__main__":
     from acidano.data_processing.midi.read_midi import Read_midi

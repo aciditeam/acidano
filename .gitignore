@@ -1,0 +1,8 @@
+# DS Store
+**/.DS_Store
+
+# compilation files
+**/*.pyc
+
+# Data
+**/*.mid

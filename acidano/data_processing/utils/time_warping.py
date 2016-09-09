@@ -13,6 +13,7 @@ import needleman_chord
 
 def linear_warp_pr(pianoroll, T_target):
     # Ensure we actually read a pianoroll
+    # T_target is a scalar
     out = {}
     T_source = get_pianoroll_time(pianoroll)
     ratio = T_source / float(T_target)
@@ -33,6 +34,12 @@ def conversion_to_integer_list(pr, lenght):
 
 
 def needleman_chord_wrapper(pr1, pr2):
+    # pr1 and pr2 are numpy matrices
+    # For dictionnaries pianorolls, first apply sum_along_instru_dim
+    # to obtain a matrix.
+    # To warp the pr dictionnary on the returned warped time path,
+    # use the next function : warp_dictionnary_trace()
+
     pr1_pitch_class = pitch_class(pr1)
     pr2_pitch_class = pitch_class(pr2)
     len1 = pr1_pitch_class.shape[0]
@@ -41,12 +48,52 @@ def needleman_chord_wrapper(pr1, pr2):
     # Compute the trace
     pr1_list = conversion_to_integer_list(pr1_pitch_class, len1)
     pr2_list = conversion_to_integer_list(pr2_pitch_class, len2)
-    trace_1, trace_2 = needleman_chord.needleman_chord(pr1_list, pr2_list, 0, 0)
+    gapopen = 3
+    gapextend = 0
+    # Traces are backward
+    trace_0, trace_1, sum_score, nbId, nbGaps = needleman_chord.needleman_chord(pr1_list, pr2_list, gapopen, gapextend)
 
-    return trace_1, trace_2
+    return trace_0[::-1], trace_1[::-1], sum_score, nbId, nbGaps
 
 
-# Warp PR
+def warp_dictionnary_trace(dico, trace):
+    dico_out = {}
+    # dico is a pianoroll dictionary
+    time_len = len(trace)
+    # Warp each numpy matrix in the dictionary
+    for key, value in dico.iteritems():
+        time_value = value.shape[0]
+        pr_temp = np.zeros((time_len, value.shape[1]))
+        counter = 0
+        for (i,bool_note) in enumerate(trace):
+            if counter >= time_value:
+                break
+            if bool_note:
+                pr_temp[i] = value[counter]
+                counter += 1
+
+        dico_out[key] = pr_temp
+
+    return dico_out
+
+
+def remove_zero_in_trace(dico, trace):
+    # Trace is a binary list indicating if a gap is inserted or not in a matrix
+    dico_out = {}
+    time_len = sum(trace)
+    for k,v in dico.iteritems():
+        pr_temp = np.zeros((time_len, v.shape[1]))
+        counter = 0
+        for (i,bool_note) in enumerate(trace):
+            if bool_note:
+                pr_temp[counter] = v[i]
+                counter += 1
+
+        dico_out[k] = pr_temp
+
+    return dico_out
+
+
 def warp_pr_aux(pr, path):
     pr_warp = {}
     for k, v in pr.iteritems():
@@ -73,110 +120,49 @@ def dtw_pr(pr0, pr1):
     return pr0_warp, pr1_warp
 
 
-def needleman_event_chord_wrapper(pr0_dict, pr1_dict):
-    # Event level
-    # Pitch-class
-    # Needleman-Wunsch
-
-    pr0 = sum_along_instru_dim(pr0_dict)
-    pr1 = sum_along_instru_dim(pr1_dict)
-
-    # Get longest sequence
-    if pr0.shape[0] < pr1.shape[0]:
-        pr_long = pr1
-        pr_short = pr0
-        pr_short_dict = pr0_dict
-        short_ind = 0
-    else:
-        pr_long = pr0
-        pr_short = pr1
-        pr_short_dict = pr1_dict
-        short_ind = 1
-
-    # Event level
-    el_long = get_event_ind(pr_long)
-    el_short = get_event_ind(pr_short)
-    pr_long_el = pr_long[el_long,:]
-    pr_short_el = pr_short[el_short,:]
-
-    # Needleman-Wunsch wrapper (pitch-class before calling C function)
-    trace_long, trace_short = needleman_chord_wrapper(pr_long_el, pr_short_el)
-
-    # Write down the time marker
-    time_marker = [(0,0)]
-    counter_long = 0
-    counter_short = 0
-    for bool_long, bool_short in zip(trace_long, trace_short):
-        if bool_long and bool_short:
-            time_marker.append((el_short[counter_short], el_long[counter_long]))
-            counter_long += 1
-            counter_short += 1
-        elif bool_long:
-            counter_long += 1
-        elif bool_short:
-            counter_short += 1
-
-    # Add last indices
-    time_marker.append((len(pr_short), len(pr_long)))
-
-    # From time marker, create a time path
-    def build_indices(s0, t0, s1, t1):
-        ratio = (s1-s0)/float(t1-t0)
-        l = [int(round(ratio * e + s0)) for e in range(0, t1-t0)]
-        return l
-
-    path = []
-    for (s0, t0), (s1, t1) in zip(time_marker[:-1], time_marker[1:]):
-        path.extend(build_indices(s0, t0, s1, t1))
-    # Shortest sequence is linearly wrapped to the longest sequence
-    pr_short_warped = warp_pr_aux(pr_short_dict, path)
-
-    return (pr_short_warped, pr1_dict) \
-        if short_ind == 0 \
-        else (pr0_dict, pr_short_warped)
-
-
 if __name__ == '__main__':
-    l1 = [1,2,1,2,3,4,3,4,5,6]
-    l2 = [1,2,3,4,5,6]
+    l0 = [1,1,2,4,4,4,4,4,9,9,9,9,9]
+    l1 = [1,1,2,4,4,0,0,9]
 
-    struct = needleman_chord.needleman_chord(l1, l2, 0, 0)
+    gapopen = 3
+    gapextend = 1
+    trace_0, trace_1, sum_score, nbId, nbGaps = needleman_chord.needleman_chord(l0, l1, gapopen, gapextend)
 
-    # arr1 = np.asarray(l1)
-    # arr2 = np.asarray(l2)
+    print("Sum score : %d\n" % sum_score)
 
-    ind1 = struct[0]
-    ind2 = struct[1]
+    def list_proc_aux(l):
+        # l = [l[0]] + l
+        # # Repeat first element
+        # l.append(l[-1])
+        # # Reverse
+        # ll = l[::-1]
+        # ll = [l[-1]] + l[1:-1] + [l[0]]
+        return l[::-1]
 
-    arr1 = np.zeros((len(ind1)))
-    arr2 = np.zeros((len(ind2)))
-    # len(ind1) and len(ind2) should be the same
+    trace_0 = list_proc_aux(trace_0)
+    trace_1 = list_proc_aux(trace_1)
+
+    print l0
+    print trace_0
+    ll0 = []
     counter = 0
-    for i, elem1 in enumerate(ind1):
-        try:
-            if elem1:
-                arr1[i] = l1[counter]
-                counter += 1
-            else:
-                arr1[i] = -1
-        except:
-            import pdb; pdb.set_trace()
-    counter = 0
-    for i, elem2 in enumerate(ind2):
-        try:
-            if elem2:
-                arr2[i] = l2[counter]
-                counter += 1
-            else:
-                arr2[i] = -1
-        except:
-            import pdb; pdb.set_trace()
-    print ("Original sequences :")
-    print(l1)
-    print(l2)
+    for a in trace_0:
+        if a:
+            ll0.append(str(l0[counter]))
+            counter += 1
+        else:
+            ll0.append("#")
 
-    print ("Aligned sequences :")
-    # print(arr1[ind1])
-    # print(arr2[ind2])
-    print(arr1)
-    print(arr2)
+    print l1
+    print trace_1
+    ll1 = []
+    counter = 0
+    for a in trace_1:
+        if a:
+            ll1.append(str(l1[counter]))
+            counter += 1
+        else:
+            ll1.append("#")
+
+    for i in range(len(trace_0)):
+        print('{}         {}'.format(ll0[i], ll1[i]))

@@ -54,3 +54,14 @@ def write_midi(pr, quantization, write_path, tempo=80):
                 track.append(mido.Message('note_on', note=pitch, velocity=velocity, time=time))
     mid.save(write_path)
     return
+
+
+if __name__ == '__main__':
+    aaa = np.zeros((10, 128))
+    bbb = np.zeros((10, 128))
+    for i in range(10):
+        aaa[i, 60+i] = 127
+        bbb[i, 60-i] = 127
+    pr = {'piano': aaa, 'cello': bbb}
+
+    write_midi(pr, 1, "test.mid", tempo=80)

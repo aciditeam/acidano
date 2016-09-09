@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+# -*- coding: utf8 -*-
+
+
+def write_numpy_array_html(filename, dataname):
+    text = """
 <!DOCTYPE html>
 <meta charset="utf-8">
 <style>
@@ -30,9 +36,9 @@
 
 <body>
     <svg class="graph"></svg>
-    <script src=" http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+    <script src="/Users/leo/Recherche/GitHub_Aciditeam/acidano/acidano/visualization/d3.v3.min.js" charset="utf-8"></script>
     <script>
-        var dataname = 'temp'
+        var dataname = '""" + dataname + """'
 
         var zoom = d3.behavior.zoom()
             .scaleExtent([1, 10])
@@ -174,10 +180,10 @@
             graph.append("text").attr({
                     id: "text" + i, // Create an id for text so we can select it later for removing on mouseout
                     x: function() {
-                        return W_text(d.x);
+                        return W(d.x) - 10;
                     },
                     y: function() {
-                        return H_text(d.y);
+                        return H(d.y) - 15;
                     }
                 })
                 .text(function() {
@@ -216,3 +222,8 @@
 
     </script>
 </body>
+"""
+
+    with open(filename, "wb") as f:
+        f.write(text)
+    return

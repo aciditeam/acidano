@@ -98,6 +98,7 @@ def train(params, dataset, temporal_granularity, log_file_path):
     p = T.matrix('p')
 
     # construct the RBM class
+    # Function in the class file
     crbm = CRBM(input=v,
                 input_history=p,
                 n_visible=orch_dim,
@@ -107,6 +108,7 @@ def train(params, dataset, temporal_granularity, log_file_path):
 
     # get the cost and the gradient corresponding to one step of CD-15
     cost, updates = crbm.cost_updates(lr=learning_rate, k=10)
+    # Get the symbolic graphs for evaluation
     precision, recall, accuracy, updates_test = crbm.prediction_measure(k=gibbs_sampling_step_test)
 
     #################################
