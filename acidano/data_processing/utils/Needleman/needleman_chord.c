@@ -42,7 +42,8 @@
 
 
 char *int2bin(long a, char *buffer, int buf_size) {
-    for (int i = buf_size-1; i >= 0; i--) {
+    int i;
+    for (i = buf_size-1; i >= 0; i--) {
         buffer[i] = (a & 0x1) + '0';
         a >>= 1;
     }
@@ -58,6 +59,7 @@ int score_chord(long ax, long bx){
     buffer[BUF_SIZE - 1] = '\0';
     int nb_elt_a = 0;
     int nb_elt_b = 0;
+    int i;
 
     // int a_print = (int)a;
     // int b_print = (int)b;
@@ -68,7 +70,7 @@ int score_chord(long ax, long bx){
     }
     else
     {
-        for (int i=0; i < NUM_PITCH_CLASS; i++)
+        for (i=0; i < NUM_PITCH_CLASS; i++)
         {
             nb_elt_a += (a & 0x1);
             nb_elt_b += (b & 0x1);
@@ -735,6 +737,7 @@ float *needlemanWunsch(const long  *a, const long  *b,
     /* Python interface */
     static PyObject	*needleman_chord(PyObject* self, PyObject* args)
     {
+        int i;
         // Input
         PyObject    *alist_PY; /* the list of int */
         PyObject    *blist_PY;
@@ -785,7 +788,7 @@ float *needlemanWunsch(const long  *a, const long  *b,
         // Build int lists
         /* iterate over items of the list, grabbing strings, and parsing
         for numbers */
-        for (int i=0; i<lena; i++){
+        for (i=0; i<lena; i++){
             /* grab the string object from the next element of the list */
             intObj = PyList_GetItem(alist_PY, i); /* Can't fail */
             Py_INCREF(intObj);
@@ -795,7 +798,7 @@ float *needlemanWunsch(const long  *a, const long  *b,
             Py_DECREF(intObj);
         }
 
-        for (int i=0; i<lenb; i++){
+        for (i=0; i<lenb; i++){
             /* grab the string object from the next element of the list */
             intObj = PyList_GetItem(blist_PY, i); /* Can't fail */
             Py_INCREF(intObj);
@@ -817,7 +820,7 @@ float *needlemanWunsch(const long  *a, const long  *b,
         if (!trace_a_PY){
             return NULL;
         }
-        for (int i = 0; i < trace_length; i++) {
+        for (i = 0; i < trace_length; i++) {
             // Index are lenb+lena-i to flip lr the list and return only useful part
             intObj = PyInt_FromLong(trace_a[i]);
             if (!intObj) {
@@ -833,7 +836,7 @@ float *needlemanWunsch(const long  *a, const long  *b,
         if (!trace_b_PY){
             return NULL;
         }
-        for (int i = 0; i < trace_length; i++) {
+        for (i = 0; i < trace_length; i++) {
             intObj = PyInt_FromLong(trace_b[i]);
             if (!intObj) {
                 Py_DECREF(trace_b_PY);
