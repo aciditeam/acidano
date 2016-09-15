@@ -59,6 +59,6 @@ def precision_measure(true_frame, pred_frame):
 
     quotient = true_positive + false_positive
 
-    prediction_measure = T.switch(T.eq(quotient, 0), 0, true_positive / quotient)
+    precision_measure = T.switch(T.eq(quotient, 0), 0, true_positive / quotient)
 
-    return prediction_measure
+    return precision_measure
