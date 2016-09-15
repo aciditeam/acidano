@@ -147,7 +147,7 @@ class Read_midi(object):
                 time = float(message.time)
                 time_counter += time / ticks_per_beat * self.__quantization
                 # Time in pr (mapping)
-                time_pr = int(time_counter)
+                time_pr = int(round(time_counter))
                 # Note on
                 if message.type == 'note_on':
                     # Get pitch
@@ -182,13 +182,14 @@ class Read_midi(object):
 
 
 if __name__ == '__main__':
-    song_path = 'DEBUG/test.mid'
-    quantization = 12
+    song_path = '/Users/leo/Recherche/GitHub_Aciditeam/database/Solo_midi/Nottingham/train/ashover_simple_chords_1.mid'
+    quantization = 2
     midifile = Read_midi(song_path, quantization)
     pr = midifile.read_file()
 
     AAA = sum_along_instru_dim(pr)
-    AAA = AAA[0:quantization*12, :]
+    # AAA = AAA[0:quantization*12, :]
+    AAA = AAA[:100,21:109]
     np.savetxt('DEBUG/temp.csv', AAA, delimiter=',')
     dump_to_csv('DEBUG/temp.csv', 'DEBUG/temp.csv')
     write_numpy_array_html("DEBUG/pr_aligned.html", "temp")
