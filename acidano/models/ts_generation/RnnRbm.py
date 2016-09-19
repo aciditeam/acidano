@@ -76,8 +76,7 @@ class RnnRbm(object):
         self.v.tag.test_value = self.rng_np.rand(self.batch_size, self.temporal_order, self.n_visible).astype(theano.config.floatX)
 
         # Random generator
-            # self.rng = RandomStreams(seed=np.random.randint(1 << 30))
-        self.rng = RandomStreams(seed=25)
+        self.rng = RandomStreams(seed=np.random.randint(1 << 30))
         self.u0 = T.zeros((self.batch_size, self.n_hidden_recurrent))  # initial value for the RNN hidden
         self.u0.tag.test_value = np.zeros((self.batch_size, self.n_hidden_recurrent), dtype=theano.config.floatX)
 
@@ -194,9 +193,10 @@ class RnnRbm(object):
     ###############################
     def cost_updates(self, optimizer):
         v_sample, mean_v, updates_train = self.inference()
-        # Monitor function (binary cross-entropy)
         monitor = T.xlogx.xlogy0(self.v, mean_v) + T.xlogx.xlogy0(1 - self.v, 1 - mean_v)
-        # monitor = T.binary_crossentropy(self.v, mean_v)
+        monitor = monitor.sum(axis=(1,2)) / self.temporal_order
+        # Mean over batches
+        monitor = T.mean(monitor)
 
         # Compute cost function
         fe_positive = self.free_energy(self.v, self.bv_dynamic, self.bh_dynamic)
@@ -204,6 +204,9 @@ class RnnRbm(object):
 
         # Mean along batches
         cost = T.mean(fe_positive) - T.mean(fe_negative)
+        # This quantity means nothing !!
+        # But by it's a gradient is close to the gradient of
+        # the non-approximate cost function
 
         # Update weights
         grads = T.grad(cost, self.params, consider_constant=[v_sample])
@@ -212,7 +215,7 @@ class RnnRbm(object):
             ((p, p - 0.001 * g) for p, g in zip(self.params, grads))
         )
 
-        return cost, updates_train
+        return cost, monitor, updates_train
 
     ###############################
     ##       TRAIN FUNCTION
@@ -241,10 +244,10 @@ class RnnRbm(object):
 
     def get_train_function(self, index, train_pr, optimizer, name):
         # get the cost and the gradient corresponding to one step of CD-15
-        cost, updates = self.cost_updates(optimizer)
+        cost, monitor, updates = self.cost_updates(optimizer)
 
         return theano.function(inputs=[index],
-                               outputs=[cost],
+                               outputs=[monitor],
                                updates=updates,
                                givens={self.v_init: self.build_train_matrix(train_pr, index)},
                                name=name
