@@ -92,7 +92,7 @@ class cRBM(object):
     def get_param_dico(params):
         # Unpack
         if params is None:
-            temporal_order, n_hidden, batch_size, gibbs_steps = [1,2,3,4,5]
+            temporal_order, n_hidden, batch_size, gibbs_steps = [1,2,3,5]
         else:
             temporal_order, n_hidden, batch_size, gibbs_steps = params
         # Cast the params
