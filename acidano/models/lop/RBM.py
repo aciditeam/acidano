@@ -1,15 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
-""" Theano CRBM implementation.
-
-For details, see:
-http://www.uoguelph.ca/~gwtaylor/publications/nips2006mhmublv
-Sample data:
-http://www.uoguelph.ca/~gwtaylor/publications/nips2006mhmublv/motion.mat
-
-@author Graham Taylor"""
-
 # Hyperopt
 from hyperopt import hp
 from math import log
@@ -28,23 +19,23 @@ from acidano.utils.init import shared_normal, shared_zeros
 from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure
 
 
-class cRBM(object):
-    """Conditional Restricted Boltzmann Machine (CRBM)  """
+class RBM(object):
+    """ A lop adapted RBM.
+    Generation is performed by inpainting with some of the visible units clamped (context and piano)"""
+
     def __init__(self,
                  model_param,
                  dimensions,
                  weights_initialization=None):
-        """ inspired by G. Taylor"""
         # Datas are represented like this:
-        #   - visible : (num_batch, orchestra_dim)
-        #   - past : (num_batch, orchestra_dim * (temporal_order-1) + piano_dim)
+        #   - visible = concatenation of the data : (num_batch, piano ^ orchestra_dim * temporal_order)
         self.batch_size = dimensions['batch_size']
-        self.n_visible = dimensions['orchestra_dim']
         self.temporal_order = dimensions['temporal_order']
-        self.n_past = (self.temporal_order-1) * dimensions['orchestra_dim'] + dimensions['piano_dim']
+        self.n_v = dimensions['orchestra_dim']
+        self.n_c = (self.temporal_order - 1) * dimensions['orchestra_dim'] + dimensions['piano_dim']
 
         # Number of hidden in the RBM
-        self.n_hidden = model_param['n_hidden']
+        self.n_h = model_param['n_hidden']
         # Number of Gibbs sampling steps
         self.k = model_param['gibbs_steps']
 
@@ -52,23 +43,23 @@ class cRBM(object):
 
         # Weights
         if weights_initialization is None:
-            self.W = shared_normal(self.n_visible, self.n_hidden, 0.01, self.rng_np)
-            self.bv = shared_zeros(self.n_visible)
-            self.bh = shared_zeros(self.n_hidden)
-            self.A = shared_normal(self.n_past, self.n_visible, 0.01, self.rng_np)
-            self.B = shared_normal(self.n_past, self.n_hidden, 0.01, self.rng_np)
+            self.W = shared_normal(self.n_v, self.n_hidden, 0.01, self.rng_np)
+            self.C = shared_normal(self.n_c, self.n_hidden, 0.01, self.rng_np)
+            self.bv = shared_zeros(self.n_v)
+            self.bc = shared_zeros(self.n_c)
+            self.bh = shared_zeros(self.n_h)
         else:
             self.W = weights_initialization['W']
+            self.C = weights_initialization['C']
             self.bv = weights_initialization['bv']
+            self.bc = weights_initialization['bc']
             self.bh = weights_initialization['bh']
-            self.A = weights_initialization['A']
-            self.B = weights_initialization['B']
 
-        self.params = [self.W, self.A, self.B, self.bv, self.bh]
+        self.params = [self.W, self.C, self.bv, self.bc, self.bh]
 
-        # initialize input layer for standalone CRBM or layer0 of CDBN
+        # We distinguish between clamped (= C as clamped or context) and non clamped units (= V as visible units)
         self.v = T.fmatrix('v')
-        self.p = T.fmatrix('p')
+        self.c = T.fmatrix('c')
 
         self.rng = RandomStreams(seed=25)
 
@@ -92,7 +83,7 @@ class cRBM(object):
     def get_param_dico(params):
         # Unpack
         if params is None:
-            temporal_order, n_hidden, batch_size, gibbs_steps = [1,2,3,5]
+            temporal_order, n_hidden, batch_size, gibbs_steps = [1,2,3,4]
         else:
             temporal_order, n_hidden, batch_size, gibbs_steps = params
         # Cast the params
@@ -106,65 +97,64 @@ class cRBM(object):
 
     @staticmethod
     def name():
-        return "cRBM"
+        return "RBM (generation by inpainting)"
 
     ###############################
     ##       NEGATIVE PARTICLE
     ###############################
-    def free_energy(self, v, bv, bh):
+    def free_energy(self, v, c):
         # sum along pitch axis
-        fe = -(v * bv).sum(axis=1) - T.log(1 + T.exp(T.dot(v, self.W) + bh)).sum(axis=1)
+        fe = -(v*self.bv + c*self.bc).sum(axis=1) - T.log(1 + T.exp(T.dot(v, self.W) + T.dot(c, self.C) + self.bh)).sum(axis=1)
         return fe
 
-    def gibbs_step(self, v, bv, bh):
+    def gibbs_step(self, v, c):
         # bv and bh defines the dynamic biases computed thanks to u_tm1
-        mean_h = T.nnet.sigmoid(T.dot(v, self.W) + bh)
+        mean_h = T.nnet.sigmoid(T.dot(v, self.W) + T.dot(c, self.C) + self.bh)
         h = self.rng.binomial(size=mean_h.shape, n=1, p=mean_h,
                               dtype=theano.config.floatX)
-        mean_v = T.nnet.sigmoid(T.dot(h, self.W.T) + bv)
-        v = self.rng.binomial(size=mean_v.shape, n=1, p=mean_v,
+        v_mean = T.nnet.sigmoid(T.dot(h, self.W.T) + self.bv)
+        v = self.rng.binomial(size=v_mean.shape, n=1, p=v_mean,
                               dtype=theano.config.floatX)
-        return v, mean_v
+        c_mean = T.nnet.sigmoid(T.dot(h, self.C.T) + self.bc)
+        c = self.rng.binomial(size=c_mean.shape, n=1, p=c_mean,
+                              dtype=theano.config.floatX)
+        return v, v_mean, c, c_mean
 
     def get_negative_particle(self):
-        # Get dynamic biases
-        self.bv_dyn = T.dot(self.p, self.A) + self.bv
-        self.bh_dyn = T.dot(self.p, self.B) + self.bh
-        # Train the RBMs by blocks
         # Perform k-step gibbs sampling
-        (v_chain, mean_chain), updates_rbm = theano.scan(
-            fn=lambda v,bv,bh: self.gibbs_step(v, bv,bh),
-            outputs_info=[self.v, None],
-            non_sequences=[self.bv_dyn, self.bh_dyn],
+        (v_chain, v_chain_mean, c_chain, c_chain_mean), updates_rbm = theano.scan(
+            fn=lambda v,c: self.gibbs_step(v,c),
+            outputs_info=[self.v, None, self.c, None],
             n_steps=self.k
         )
         # Get last element of the gibbs chain
         v_sample = v_chain[-1]
-        mean_v = mean_chain[-1]
+        c_sample = c_chain[-1]
+        _, v_mean, _, c_mean = self.gibbs_step(v_sample, c_sample)
 
-        return v_sample, mean_v, updates_rbm
+        return v_sample, v_mean, c_sample, c_mean, updates_rbm
 
     ###############################
     ##       COST
     ###############################
     def cost_updates(self, optimizer):
         # Get the negative particle
-        v_sample, mean_v, updates_train = self.get_negative_particle()
+        v_sample, v_mean, c_sample, c_mean, updates_train = self.get_negative_particle()
 
         # Compute the free-energy for positive and negative particles
-        fe_positive = self.free_energy(self.v, self.bv_dyn, self.bh_dyn)
-        fe_negative = self.free_energy(v_sample, self.bv_dyn, self.bh_dyn)
+        fe_positive = self.free_energy(self.v, self.c)
+        fe_negative = self.free_energy(v_sample, c_sample)
 
         # Cost = mean along batches of free energy difference
         cost = T.mean(fe_positive) - T.mean(fe_negative)
 
         # Monitor
-        monitor = T.xlogx.xlogy0(self.v, mean_v) + T.xlogx.xlogy0(1 - self.v, 1 - mean_v)
+        monitor = T.xlogx.xlogy0(self.v, v_mean) + T.xlogx.xlogy0(1 - self.v, 1 - v_mean) +\
+            T.xlogx.xlogy0(self.c, c_mean) + T.xlogx.xlogy0(1 - self.c, 1 - c_mean)
         monitor = monitor.sum() / self.batch_size
 
         # Update weights
-        grads = T.grad(cost, self.params, consider_constant=[v_sample])
-        # updates_train = optimizer.get_updates(self.params, grads, updates_train)
+        grads = T.grad(cost, self.params, consider_constant=[v_sample, c_sample])
         updates_train = optimizer.get_updates(self.params, grads, updates_train)
 
         return cost, monitor, updates_train
@@ -172,7 +162,7 @@ class cRBM(object):
     ###############################
     ##       TRAIN FUNCTION
     ###############################
-    def build_past(self, piano, orchestra, index):
+    def build_context(self, piano, orchestra, index):
         # [T-1, T-2, ..., 0]
         decreasing_time = theano.shared(np.arange(self.temporal_order-1,0,-1, dtype=np.int32))
         #
@@ -201,7 +191,7 @@ class cRBM(object):
                                outputs=[cost, monitor],
                                updates=updates,
                                givens={self.v: self.build_visible(orchestra, index),
-                                       self.p: self.build_past(piano, orchestra, index)},
+                                       self.c: self.build_context(piano, orchestra, index)},
                                name=name
                                )
 
@@ -210,7 +200,7 @@ class cRBM(object):
     ###############################
     def prediction_measure(self):
         # Generate the last frame for the sequence v
-        v_sample, _, updates_valid = self.get_negative_particle()
+        v_sample, _, c_sample, _ updates_valid = self.get_negative_particle()
         predicted_frame = v_sample
         # Get the ground truth
         true_frame = self.v
@@ -230,7 +220,7 @@ class cRBM(object):
                                outputs=[precision, recall, accuracy],
                                updates=updates_valid,
                                givens={self.v: self.build_visible(orchestra, index),
-                                       self.p: self.build_past(piano, orchestra, index)},
+                                       self.c: self.build_context(piano, orchestra, index)},
                                name=name
                                )
 
