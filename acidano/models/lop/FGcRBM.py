@@ -1,15 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
-""" Theano CRBM implementation.
-
-For details, see:
-http://www.uoguelph.ca/~gwtaylor/publications/nips2006mhmublv
-Sample data:
-http://www.uoguelph.ca/~gwtaylor/publications/nips2006mhmublv/motion.mat
-
-@author Graham Taylor"""
-
 # Model lop
 from model_lop import Model_lop
 
@@ -31,23 +22,24 @@ from acidano.utils.init import shared_normal, shared_zeros
 from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure
 
 
-class cRBM(Model_lop):
-    """Conditional Restricted Boltzmann Machine (CRBM)  """
+class FGcRBM(Model_lop):
+    """Factored Gated Conditional Restricted Boltzmann Machine (CRBM)"""
     def __init__(self,
                  model_param,
                  dimensions,
                  weights_initialization=None):
-        """ inspired by G. Taylor"""
         # Datas are represented like this:
         #   - visible : (num_batch, orchestra_dim)
         #   - past : (num_batch, orchestra_dim * (temporal_order-1) + piano_dim)
         self.batch_size = dimensions['batch_size']
-        self.n_visible = dimensions['orchestra_dim']
         self.temporal_order = dimensions['temporal_order']
-        self.n_past = (self.temporal_order-1) * dimensions['orchestra_dim'] + dimensions['piano_dim']
+        self.n_v = dimensions['orchestra_dim']
+        self.n_p = (self.temporal_order-1) * dimensions['orchestra_dim']
+        self.n_z = dimensions['piano_dim']
 
         # Number of hidden in the RBM
-        self.n_hidden = model_param['n_hidden']
+        self.n_h = model_param['n_hidden']
+        self.n_f = model_param['n_factor']
         # Number of Gibbs sampling steps
         self.k = model_param['gibbs_steps']
 
@@ -55,23 +47,39 @@ class cRBM(Model_lop):
 
         # Weights
         if weights_initialization is None:
-            self.W = shared_normal(self.n_visible, self.n_hidden, 0.01, self.rng_np, name='W')
-            self.bv = shared_zeros((self.n_visible), name='bv')
-            self.bh = shared_zeros((self.n_hidden), name='bh')
-            self.A = shared_normal(self.n_past, self.n_visible, 0.01, self.rng_np, name='A')
-            self.B = shared_normal(self.n_past, self.n_hidden, 0.01, self.rng_np, name='B')
+            self.Wvf = shared_normal(self.n_v, self.n_f, 0.01, self.rng_np, name='Wvf')
+            self.Whf = shared_normal(self.n_h, self.n_f, 0.01, self.rng_np, name='Whf')
+            self.Wzf = shared_normal(self.n_z, self.n_f, 0.01, self.rng_np, name='Wzf')
+            self.bv = shared_zeros((self.n_v), name='bv')
+            self.bh = shared_zeros((self.n_h), name='bh')
+            self.Apf = shared_normal(self.n_p, self.n_f, 0.01, self.rng_np, name='Apf')
+            self.Avf = shared_normal(self.n_v, self.n_f, 0.01, self.rng_np, name='Avf')
+            self.Azf = shared_normal(self.n_z, self.n_f, 0.01, self.rng_np, name='Azf')
+            self.Bpf = shared_normal(self.n_p, self.n_f, 0.01, self.rng_np, name='Bpf')
+            self.Bhf = shared_normal(self.n_h, self.n_f, 0.01, self.rng_np, name='Bhf')
+            self.Bzf = shared_normal(self.n_z, self.n_f, 0.01, self.rng_np, name='Bzf')
         else:
-            self.W = weights_initialization['W']
+            self.Wvf = weights_initialization['Wvf']
+            self.Whf = weights_initialization['Whf']
+            self.Wzf = weights_initialization['Wzf']
             self.bv = weights_initialization['bv']
             self.bh = weights_initialization['bh']
-            self.A = weights_initialization['A']
-            self.B = weights_initialization['B']
+            self.Apf = weights_initialization['Apf']
+            self.Avf = weights_initialization['Avf']
+            self.Azf = weights_initialization['Azf']
+            self.Bpf = weights_initialization['Bpf']
+            self.Bhf = weights_initialization['Bhf']
+            self.Bzf = weights_initialization['Bzf']
 
-        self.params = [self.W, self.A, self.B, self.bv, self.bh]
+        self.params = [self.Wvf,self.Whf,self.Wzf,self.bv,self.bh,self.Apf,self.Avf,self.Azf,self.Bpf,self.Bhf,self.Bzf]
 
         # initialize input layer for standalone CRBM or layer0 of CDBN
         self.v = T.fmatrix('v')
         self.p = T.fmatrix('p')
+        self.z = T.fmatrix('z')
+        self.v.tag.test_value = np.random.rand(self.batch_size, self.n_v).astype(theano.config.floatX)
+        self.p.tag.test_value = np.random.rand(self.batch_size, self.n_p).astype(theano.config.floatX)
+        self.z.tag.test_value = np.random.rand(self.batch_size, self.n_z).astype(theano.config.floatX)
 
         self.rng = RandomStreams(seed=25)
 
@@ -86,6 +94,7 @@ class cRBM(Model_lop):
     def get_hp_space():
         space = (hp.qloguniform('temporal_order', log(10), log(10), 1),
                  hp.qloguniform('n_hidden', log(100), log(5000), 10),
+                 hp.qloguniform('n_factor', log(100), log(5000), 10),
                  hp.quniform('batch_size', 100, 100, 1),
                  hp.qloguniform('gibbs_steps', log(1), log(50), 1),
                  )
@@ -95,13 +104,14 @@ class cRBM(Model_lop):
     def get_param_dico(params):
         # Unpack
         if params is None:
-            temporal_order, n_hidden, batch_size, gibbs_steps = [1,2,3,5]
+            temporal_order, n_hidden, n_factor, batch_size, gibbs_steps = [1,2,3,4,5]
         else:
-            temporal_order, n_hidden, batch_size, gibbs_steps = params
+            temporal_order, n_hidden, n_factor, batch_size, gibbs_steps = params
         # Cast the params
         model_param = {
             'temporal_order': int(temporal_order),
             'n_hidden': int(n_hidden),
+            'n_factor': int(n_factor),
             'batch_size': int(batch_size),
             'gibbs_steps': int(gibbs_steps)
         }
@@ -109,36 +119,86 @@ class cRBM(Model_lop):
 
     @staticmethod
     def name():
-        return "cRBM"
+        return "FGcRBM"
 
     ###############################
-    ##       NEGATIVE PARTICLE
+    ## CONDITIONAL PROBABILITIES
     ###############################
-    def free_energy(self, v, bv, bh):
-        # sum along pitch axis
-        fe = -(v * bv).sum(axis=1) - T.log(1 + T.exp(T.dot(v, self.W) + bh)).sum(axis=1)
+    def get_f_h(self, v, z):
+        # Visible to factor : size (1,f)
+        v_f = T.dot(v, self.Wvf)
+        # Latent to factor : size (1,f)
+        z_f = T.dot(z, self.Wzf)
+        # vhl energy conditioned over hidden units
+        f_h = T.dot((v_f * z_f), self.Whf.T)
+        return f_h
+
+    def get_f_v(self, h, z):
+        # Hidden to factor : size (1,f)
+        h_f = T.dot(h, self.Whf)
+        # Latent to factor : size (1,f)
+        z_f = T.dot(z, self.Wzf)
+        # vhl energy conditioned over hidden units
+        f_v = T.dot((h_f * z_f), self.Wvf.T)
+        return f_v
+
+    ###############################
+    ## DYNAMIC BIASES
+    ###############################
+    def get_bv_dyn(self, p, z):
+        # Context to factor : size (1,f)
+        p_f = T.dot(p, self.Apf)
+        # Latent to factor : size (1,f)
+        z_f = T.dot(z, self.Azf)
+        #
+        dyn_bias = self.bv + T.dot((p_f * z_f), self.Avf.T)
+        return dyn_bias
+
+    def get_bh_dyn(self, p, z):
+        # Context to factor : size (1,f)
+        p_f = T.dot(p, self.Bpf)
+        # Latent to factor : size (1,f)
+        z_f = T.dot(z, self.Bzf)
+        #
+        dyn_bias = self.bh + T.dot((p_f * z_f), self.Bhf.T)
+        return dyn_bias
+
+    ###############################
+    ## NEGATIVE PARTICLE
+    ###############################
+    def free_energy(self, v, z, bv, bh):
+        # Visible contribution
+        A = -(v * bv).sum(axis=1)
+        f_h = self.get_f_h(v, z)
+        B = - T.log(1 + T.exp(f_h + bh)).sum(axis=1)
+
+        # Sum the two contributions
+        fe = A + B
         return fe
 
-    def gibbs_step(self, v, bv, bh):
+    def gibbs_step(self, v, z, bv, bh):
         # bv and bh defines the dynamic biases computed thanks to u_tm1
-        mean_h = T.nnet.sigmoid(T.dot(v, self.W) + bh)
+        f_h = self.get_f_h(v, z)
+        mean_h = T.nnet.sigmoid(f_h + bh)
         h = self.rng.binomial(size=mean_h.shape, n=1, p=mean_h,
                               dtype=theano.config.floatX)
-        mean_v = T.nnet.sigmoid(T.dot(h, self.W.T) + bv)
+        f_v = self.get_f_v(h, z)
+        mean_v = T.nnet.sigmoid(f_v + bv)
         v = self.rng.binomial(size=mean_v.shape, n=1, p=mean_v,
                               dtype=theano.config.floatX)
         return v, mean_v
 
     def get_negative_particle(self):
         # Get dynamic biases
-        self.bv_dyn = T.dot(self.p, self.A) + self.bv
-        self.bh_dyn = T.dot(self.p, self.B) + self.bh
+        self.bv_dyn = self.get_bv_dyn(self.p, self.z)
+        self.bh_dyn = self.get_bh_dyn(self.p, self.z)
+
         # Train the RBMs by blocks
         # Perform k-step gibbs sampling
         (v_chain, mean_chain), updates_rbm = theano.scan(
-            fn=lambda v,bv,bh: self.gibbs_step(v, bv,bh),
+            fn=self.gibbs_step,
             outputs_info=[self.v, None],
-            non_sequences=[self.bv_dyn, self.bh_dyn],
+            non_sequences=[self.z, self.bv_dyn, self.bh_dyn],
             n_steps=self.k
         )
         # Get last element of the gibbs chain
@@ -155,8 +215,8 @@ class cRBM(Model_lop):
         v_sample, mean_v, updates_train = self.get_negative_particle()
 
         # Compute the free-energy for positive and negative particles
-        fe_positive = self.free_energy(self.v, self.bv_dyn, self.bh_dyn)
-        fe_negative = self.free_energy(v_sample, self.bv_dyn, self.bh_dyn)
+        fe_positive = self.free_energy(self.v, self.z, self.bv_dyn, self.bh_dyn)
+        fe_negative = self.free_energy(v_sample, self.z, self.bv_dyn, self.bh_dyn)
 
         # Cost = mean along batches of free energy difference
         cost = T.mean(fe_positive) - T.mean(fe_negative)
@@ -174,7 +234,7 @@ class cRBM(Model_lop):
     ###############################
     ##       TRAIN FUNCTION
     ###############################
-    def build_past(self, piano, orchestra, index):
+    def build_past(self, orchestra, index):
         # [T-1, T-2, ..., 0]
         decreasing_time = theano.shared(np.arange(self.temporal_order-1,0,-1, dtype=np.int32))
         #
@@ -182,14 +242,14 @@ class cRBM(Model_lop):
         # Reshape
         index_full = index.reshape((self.batch_size, 1)) - temporal_shift
         # Slicing
-        past_orchestra = orchestra[index_full,:]\
+        past = orchestra[index_full,:]\
             .ravel()\
-            .reshape((self.batch_size, (self.temporal_order-1)*self.n_visible))
-        present_piano = piano[index,:]
-        # Concatenate along pitch dimension
-        past = T.concatenate((present_piano, past_orchestra), axis=1)
-        # Reshape
+            .reshape((self.batch_size, (self.temporal_order-1)*self.n_v))
         return past
+
+    def build_latent(self, piano, index):
+        visible = piano[index,:]
+        return visible
 
     def build_visible(self, orchestra, index):
         visible = orchestra[index,:]
@@ -203,7 +263,8 @@ class cRBM(Model_lop):
                                outputs=[cost, monitor],
                                updates=updates,
                                givens={self.v: self.build_visible(orchestra, index),
-                                       self.p: self.build_past(piano, orchestra, index)},
+                                       self.p: self.build_past(orchestra, index),
+                                       self.z: self.build_latent(piano, index)},
                                name=name
                                )
 
@@ -232,12 +293,14 @@ class cRBM(Model_lop):
                                outputs=[precision, recall, accuracy],
                                updates=updates_valid,
                                givens={self.v: self.build_visible(orchestra, index),
-                                       self.p: self.build_past(piano, orchestra, index)},
+                                       self.p: self.build_past(orchestra, index),
+                                       self.z: self.build_latent(piano, index)},
                                name=name
                                )
 
     ###############################
     ##       GENERATION
+    #   Need no seed in this model
     ###############################
     #  def generate(self, k=20):
     #      # Random initialization of the visible units

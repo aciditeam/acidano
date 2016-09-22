@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
+# Model lop
+from model_lop import Model_lop
+
 # Hyperopt
 from hyperopt import hp
 from math import log
@@ -19,7 +22,7 @@ from acidano.utils.init import shared_normal, shared_zeros
 from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure
 
 
-class RBM(object):
+class RBM(Model_lop):
     """ A lop adapted RBM.
     Generation is performed by inpainting with some of the visible units clamped (context and piano)"""
 
@@ -43,11 +46,11 @@ class RBM(object):
 
         # Weights
         if weights_initialization is None:
-            self.W = shared_normal(self.n_v, self.n_hidden, 0.01, self.rng_np)
-            self.C = shared_normal(self.n_c, self.n_hidden, 0.01, self.rng_np)
-            self.bv = shared_zeros(self.n_v)
-            self.bc = shared_zeros(self.n_c)
-            self.bh = shared_zeros(self.n_h)
+            self.W = shared_normal(self.n_v, self.n_h, 0.01, self.rng_np, name='W')
+            self.C = shared_normal(self.n_c, self.n_h, 0.01, self.rng_np, name='C')
+            self.bv = shared_zeros((self.n_v), name='bv')
+            self.bc = shared_zeros((self.n_c), name='bc')
+            self.bh = shared_zeros((self.n_h), name='bh')
         else:
             self.W = weights_initialization['W']
             self.C = weights_initialization['C']
@@ -60,6 +63,8 @@ class RBM(object):
         # We distinguish between clamped (= C as clamped or context) and non clamped units (= V as visible units)
         self.v = T.fmatrix('v')
         self.c = T.fmatrix('c')
+        self.v.tag.test_value = np.random.rand(self.batch_size, self.n_v).astype(theano.config.floatX)
+        self.c.tag.test_value = np.random.rand(self.batch_size, self.n_c).astype(theano.config.floatX)
 
         self.rng = RandomStreams(seed=25)
 
@@ -97,14 +102,17 @@ class RBM(object):
 
     @staticmethod
     def name():
-        return "RBM (generation by inpainting)"
+        return "RBM__inpainting"
 
     ###############################
     ##       NEGATIVE PARTICLE
     ###############################
     def free_energy(self, v, c):
         # sum along pitch axis
-        fe = -(v*self.bv + c*self.bc).sum(axis=1) - T.log(1 + T.exp(T.dot(v, self.W) + T.dot(c, self.C) + self.bh)).sum(axis=1)
+        A = -(v*self.bv).sum(axis=1)
+        B = -(c*self.bc).sum(axis=1)
+        C = -(T.log(1 + T.exp(T.dot(v, self.W) + T.dot(c, self.C) + self.bh))).sum(axis=1)
+        fe = A + B + C
         return fe
 
     def gibbs_step(self, v, c):
@@ -149,9 +157,9 @@ class RBM(object):
         cost = T.mean(fe_positive) - T.mean(fe_negative)
 
         # Monitor
-        monitor = T.xlogx.xlogy0(self.v, v_mean) + T.xlogx.xlogy0(1 - self.v, 1 - v_mean) +\
-            T.xlogx.xlogy0(self.c, c_mean) + T.xlogx.xlogy0(1 - self.c, 1 - c_mean)
-        monitor = monitor.sum() / self.batch_size
+        visible_loglike = T.xlogx.xlogy0(self.v, v_mean) + T.xlogx.xlogy0(1 - self.v, 1 - v_mean)
+        context_loglike = T.xlogx.xlogy0(self.c, c_mean) + T.xlogx.xlogy0(1 - self.c, 1 - c_mean)
+        monitor = (visible_loglike.sum() + context_loglike.sum()) / self.batch_size
 
         # Update weights
         grads = T.grad(cost, self.params, consider_constant=[v_sample, c_sample])
@@ -172,7 +180,7 @@ class RBM(object):
         # Slicing
         past_orchestra = orchestra[index_full,:]\
             .ravel()\
-            .reshape((self.batch_size, (self.temporal_order-1)*self.n_visible))
+            .reshape((self.batch_size, (self.temporal_order-1)*self.n_v))
         present_piano = piano[index,:]
         # Concatenate along pitch dimension
         past = T.concatenate((present_piano, past_orchestra), axis=1)
@@ -200,7 +208,7 @@ class RBM(object):
     ###############################
     def prediction_measure(self):
         # Generate the last frame for the sequence v
-        v_sample, _, c_sample, _ updates_valid = self.get_negative_particle()
+        v_sample, _, c_sample, _, updates_valid = self.get_negative_particle()
         predicted_frame = v_sample
         # Get the ground truth
         true_frame = self.v
