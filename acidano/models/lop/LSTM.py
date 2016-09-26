@@ -243,9 +243,18 @@ class LSTM(Model_lop):
         # Get the ground truth
         true_frame = self.o
         # Measure the performances
-        precision = precision_measure(true_frame, predicted_frame)
-        recall = recall_measure(true_frame, predicted_frame)
-        accuracy = accuracy_measure(true_frame, predicted_frame)
+        precision_time = precision_measure(true_frame, predicted_frame)
+        recall_time = recall_measure(true_frame, predicted_frame)
+        accuracy_time = accuracy_measure(true_frame, predicted_frame)
+        # 2 options :
+        #       1 - take the last time index
+        # precision = precision_time[:,-1]
+        # recall = recall_time[:,-1]
+        # accuracy = accuracy_time[:,-1]
+        #       2 - mean over time
+        precision = T.mean(precision_time, axis=1)
+        recall = T.mean(recall_time, axis=1)
+        accuracy = T.mean(accuracy_time, axis=1)
         return precision, recall, accuracy, updates_valid
 
     ###############################
