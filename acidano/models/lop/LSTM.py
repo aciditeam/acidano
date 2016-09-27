@@ -97,15 +97,11 @@ class LSTM(Model_lop):
         # Variables
         self.v = T.tensor3('v')
         self.o = T.tensor3('o')
+        self.v_gen = T.matrix('v_gen')
 
-        # Initialize hidden states
-        self.h_0 = T.zeros((self.batch_size, self.n_h))
-        self.c_0 = T.zeros((self.batch_size, self.n_h))
-
+        # Test values
         self.v.tag.test_value = np.random.rand(self.batch_size, self.temporal_order, self.n_v).astype(theano.config.floatX)
         self.o.tag.test_value = np.random.rand(self.batch_size, self.temporal_order, self.n_o).astype(theano.config.floatX)
-        self.h_0.tag.test_value = np.zeros((self.batch_size, self.n_h)).astype(theano.config.floatX)
-        self.c_0.tag.test_value = np.zeros((self.batch_size, self.n_h)).astype(theano.config.floatX)
         return
 
     ###############################
@@ -143,29 +139,30 @@ class LSTM(Model_lop):
     ##  FORWARD PASS
     ###############################
     def iteration(self, v_t, c_tm1, h_tm1):
+        # Sum along last axis
+        axis = v_t.ndim - 1
         # Input gate
-        i = propup_sigmoid(T.concatenate([v_t, h_tm1], axis=1), T.concatenate([self.L_vi, self.L_hi]), self.b_i)
+        i = propup_sigmoid(T.concatenate([v_t, h_tm1], axis=axis), T.concatenate([self.L_vi, self.L_hi]), self.b_i)
         # Forget gate
-        f = propup_sigmoid(T.concatenate([v_t, h_tm1], axis=1), T.concatenate([self.L_vf, self.L_hf]), self.b_f)
+        f = propup_sigmoid(T.concatenate([v_t, h_tm1], axis=axis), T.concatenate([self.L_vf, self.L_hf]), self.b_f)
         # Cell update term
-        c_tilde = propup_tanh(T.concatenate([v_t, h_tm1], axis=1), T.concatenate([self.L_vc, self.L_hc]), self.b_c)
+        c_tilde = propup_tanh(T.concatenate([v_t, h_tm1], axis=axis), T.concatenate([self.L_vc, self.L_hc]), self.b_c)
         c_t = f * c_tm1 + i * c_tilde
         # Output gate
-        o = propup_sigmoid(T.concatenate([v_t, h_tm1], axis=1), T.concatenate([self.L_vo, self.L_ho]), self.b_o)
+        o = propup_sigmoid(T.concatenate([v_t, h_tm1], axis=axis), T.concatenate([self.L_vo, self.L_ho]), self.b_o)
         # h_t
         h_t = o * T.tanh(c_t)
         return c_t, h_t
 
-    def forward_pass(self):
-        # Time needs to be the first dimension
-        v_loop = self.v.dimshuffle((1,0,2))
+    def forward_pass(self, v, c_0, h_0):
         # Infer hidden states
         (c_seq, h_seq), updates = theano.scan(fn=self.iteration,
-                                              sequences=[v_loop],
-                                              outputs_info=[self.c_0, self.h_0])
+                                              sequences=[v],
+                                              outputs_info=[c_0, h_0])
 
         # (batch, time, pitch)
-        h_seq = h_seq.dimshuffle((1,0,2))
+        if h_seq.ndim == 3:
+            h_seq = h_seq.dimshuffle((1,0,2))
 
         # Activation probability
         o_mean = propup_sigmoid(h_seq, self.W, self.b)
@@ -179,8 +176,14 @@ class LSTM(Model_lop):
     ##       COST
     ###############################
     def cost_updates(self, optimizer):
+        # Time needs to be the first dimension
+        v_loop = self.v.dimshuffle((1,0,2))
+        # Initial states
+        c_0 = T.zeros((self.batch_size, self.n_h))
+        h_0 = T.zeros((self.batch_size, self.n_h))
+
         # Infer Orchestra sequence
-        self.pred, _, updates_train = self.forward_pass()
+        self.pred, _, updates_train = self.forward_pass(v_loop, c_0, h_0)
 
         # Compute error function
         cost = T.nnet.binary_crossentropy(self.pred, self.o)
@@ -238,8 +241,13 @@ class LSTM(Model_lop):
     ##       PREDICTION
     ###############################
     def prediction_measure(self):
+        # Time needs to be the first dimension
+        v_loop = self.v.dimshuffle((1,0,2))
+        # Initial states
+        c_0 = T.zeros((self.batch_size, self.n_h))
+        h_0 = T.zeros((self.batch_size, self.n_h))
         # Generate the last frame for the sequence v
-        _, predicted_frame, updates_valid = self.forward_pass()
+        _, predicted_frame, updates_valid = self.forward_pass(v_loop, c_0, h_0)
         # Get the ground truth
         true_frame = self.o
         # Measure the performances
@@ -248,13 +256,13 @@ class LSTM(Model_lop):
         accuracy_time = accuracy_measure(true_frame, predicted_frame)
         # 2 options :
         #       1 - take the last time index
-        # precision = precision_time[:,-1]
-        # recall = recall_time[:,-1]
-        # accuracy = accuracy_time[:,-1]
+        precision = precision_time[:,-1]
+        recall = recall_time[:,-1]
+        accuracy = accuracy_time[:,-1]
         #       2 - mean over time
-        precision = T.mean(precision_time, axis=1)
-        recall = T.mean(recall_time, axis=1)
-        accuracy = T.mean(accuracy_time, axis=1)
+        # precision = T.mean(precision_time, axis=1)
+        # recall = T.mean(recall_time, axis=1)
+        # accuracy = T.mean(accuracy_time, axis=1)
         return precision, recall, accuracy, updates_valid
 
     ###############################
@@ -274,25 +282,31 @@ class LSTM(Model_lop):
     ###############################
     ##       GENERATION
     ###############################
-    #  def generate(self, k=20):
-    #      # Random initialization of the visible units
-    #      input_init = self.theano_rng.binomial(size=self.input.shape,
-    #                                            n=1,
-    #                                            p=0.5,
-    #                                            dtype=theano.config.floatX)
-    #      # compute positive phase
-    #      pre_sigmoid_ph, ph_mean, ph_sample = \
-    #          self.sample_h_given_v(input_init, self.input_history)
-    #
-    #      # for CD, we use the newly generate hidden sample
-    #      chain_start = ph_sample
-    #
-    #      [pre_sigmoid_nvs, nv_means, nv_samples, pre_sigmoid_nhs, nh_means,
-    #       nh_samples], updates = theano.scan(self.gibbs_hvh,
-    #                                          outputs_info=[None, None, None, None, None, chain_start],
-    #                                          non_sequences=self.input_history,
-    #                                          n_steps=k)
-    #
-    #      mean_pred_v = nv_means[-1]
-    #
-    #      return mean_pred_v, updates
+    def build_seed(self, pr, index, generation_length, last_dim):
+        index.tag.test_value = 100
+        # [T-1, T-2, ..., 0]
+        temporal_shift = theano.shared(np.arange(generation_length-1,-1,-1, dtype=np.int32))
+        # Reshape
+        index_full = index - temporal_shift
+        # Slicing
+        pr = pr[index_full,:]
+        # Reshape
+        return pr
+
+    # Generation for the LSTM model is a bit special :
+    # you can't seed the orchestration with the beginning of an existing score...
+    def get_generate_function(self, index, piano, orchestra, generation_length, seed_size, name="generate_sequence"):
+        # Initial states
+        c_0_gen = T.zeros((self.n_h))
+        h_0_gen = T.zeros((self.n_h))
+
+        # Index is a scalar here
+        self.v_gen.tag.test_value = np.random.rand(generation_length, self.n_v  ).astype(theano.config.floatX)
+        _, generated_sequence, updates_generation = self.forward_pass(self.v_gen, c_0_gen, h_0_gen)
+
+        return theano.function(inputs=[index],
+                               outputs=[generated_sequence],
+                               updates=updates_generation,
+                               givens={self.v_gen: self.build_seed(piano, index, generation_length, self.n_v)},
+                               name=name
+                               )
