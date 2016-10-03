@@ -95,9 +95,9 @@ class LSTM(Model_lop):
                        self.L_ho, self.b_o, self.W, self.b]
 
         # Variables
-        self.v = T.tensor3('v')
-        self.o = T.tensor3('o')
-        self.v_gen = T.matrix('v_gen')
+        self.v = T.tensor3('v', dtype=theano.config.floatX)
+        self.o = T.tensor3('o', dtype=theano.config.floatX)
+        self.v_gen = T.matrix('v_gen', dtype=theano.config.floatX)
 
         # Test values
         self.v.tag.test_value = np.random.rand(self.batch_size, self.temporal_order, self.n_v).astype(theano.config.floatX)
@@ -295,13 +295,16 @@ class LSTM(Model_lop):
 
     # Generation for the LSTM model is a bit special :
     # you can't seed the orchestration with the beginning of an existing score...
-    def get_generate_function(self, index, piano, orchestra, generation_length, seed_size, name="generate_sequence"):
+    def get_generate_function(self, piano, orchestra, generation_length, seed_size, name="generate_sequence"):
+        # Index
+        index = T.iscalar()
+
         # Initial states
         c_0_gen = T.zeros((self.n_h))
         h_0_gen = T.zeros((self.n_h))
 
         # Index is a scalar here
-        self.v_gen.tag.test_value = np.random.rand(generation_length, self.n_v  ).astype(theano.config.floatX)
+        self.v_gen.tag.test_value = np.random.rand(generation_length, self.n_v).astype(theano.config.floatX)
         _, generated_sequence, updates_generation = self.forward_pass(self.v_gen, c_0_gen, h_0_gen)
 
         return theano.function(inputs=[index],
