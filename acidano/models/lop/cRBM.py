@@ -70,8 +70,15 @@ class cRBM(Model_lop):
         self.params = [self.W, self.A, self.B, self.bv, self.bh]
 
         # initialize input layer for standalone CRBM or layer0 of CDBN
-        self.v = T.fmatrix('v')
-        self.p = T.fmatrix('p')
+        self.v = T.matrix('v', dtype=theano.config.floatX)
+        self.p = T.matrix('p', dtype=theano.config.floatX)
+
+        # v_gen : random init
+        # p_gen : piano[t] ^ orchestra[t-N:t-1]
+        self.v_gen = T.vector('v_gen', dtype=theano.config.floatX)
+        self.p_gen = T.vector('p_gen', dtype=theano.config.floatX)
+        self.v_gen.tag.test_value = np.random.rand(self.n_visible).astype(theano.config.floatX)
+        self.p_gen.tag.test_value = np.random.rand(self.n_past).astype(theano.config.floatX)
 
         self.rng = RandomStreams(seed=25)
 
@@ -129,34 +136,34 @@ class cRBM(Model_lop):
                               dtype=theano.config.floatX)
         return v, mean_v
 
-    def get_negative_particle(self):
+    def get_negative_particle(self, v, p):
         # Get dynamic biases
-        self.bv_dyn = T.dot(self.p, self.A) + self.bv
-        self.bh_dyn = T.dot(self.p, self.B) + self.bh
+        bv_dyn = T.dot(p, self.A) + self.bv
+        bh_dyn = T.dot(p, self.B) + self.bh
         # Train the RBMs by blocks
         # Perform k-step gibbs sampling
         (v_chain, mean_chain), updates_rbm = theano.scan(
             fn=lambda v,bv,bh: self.gibbs_step(v, bv,bh),
-            outputs_info=[self.v, None],
-            non_sequences=[self.bv_dyn, self.bh_dyn],
+            outputs_info=[v, None],
+            non_sequences=[bv_dyn, bh_dyn],
             n_steps=self.k
         )
         # Get last element of the gibbs chain
         v_sample = v_chain[-1]
         mean_v = mean_chain[-1]
 
-        return v_sample, mean_v, updates_rbm
+        return v_sample, mean_v, bv_dyn, bh_dyn, updates_rbm
 
     ###############################
     ##       COST
     ###############################
     def cost_updates(self, optimizer):
         # Get the negative particle
-        v_sample, mean_v, updates_train = self.get_negative_particle()
+        v_sample, mean_v, bv_dyn, bh_dyn, updates_train = self.get_negative_particle(self.v, self.p)
 
         # Compute the free-energy for positive and negative particles
-        fe_positive = self.free_energy(self.v, self.bv_dyn, self.bh_dyn)
-        fe_negative = self.free_energy(v_sample, self.bv_dyn, self.bh_dyn)
+        fe_positive = self.free_energy(self.v, bv_dyn, bh_dyn)
+        fe_negative = self.free_energy(v_sample, bv_dyn, bh_dyn)
 
         # Cost = mean along batches of free energy difference
         cost = T.mean(fe_positive) - T.mean(fe_negative)
@@ -212,7 +219,7 @@ class cRBM(Model_lop):
     ###############################
     def prediction_measure(self):
         # Generate the last frame for the sequence v
-        v_sample, _, updates_valid = self.get_negative_particle()
+        v_sample, _, _, _, updates_valid = self.get_negative_particle(self.v, self.p)
         predicted_frame = v_sample
         # Get the ground truth
         true_frame = self.v
@@ -228,10 +235,11 @@ class cRBM(Model_lop):
     def get_validation_error(self, index, piano, orchestra, name):
         precision, recall, accuracy, updates_valid = self.prediction_measure()
 
+        # This time self.v is initialized randomly
         return theano.function(inputs=[index],
                                outputs=[precision, recall, accuracy],
                                updates=updates_valid,
-                               givens={self.v: self.build_visible(orchestra, index),
+                               givens={self.v: (np.random.uniform(0, 1, (self.batch_size, self.n_visible))).astype(theano.config.floatX),
                                        self.p: self.build_past(piano, orchestra, index)},
                                name=name
                                )
@@ -239,25 +247,48 @@ class cRBM(Model_lop):
     ###############################
     ##       GENERATION
     ###############################
-    #  def generate(self, k=20):
-    #      # Random initialization of the visible units
-    #      input_init = self.theano_rng.binomial(size=self.input.shape,
-    #                                            n=1,
-    #                                            p=0.5,
-    #                                            dtype=theano.config.floatX)
-    #      # compute positive phase
-    #      pre_sigmoid_ph, ph_mean, ph_sample = \
-    #          self.sample_h_given_v(input_init, self.input_history)
-    #
-    #      # for CD, we use the newly generate hidden sample
-    #      chain_start = ph_sample
-    #
-    #      [pre_sigmoid_nvs, nv_means, nv_samples, pre_sigmoid_nhs, nh_means,
-    #       nh_samples], updates = theano.scan(self.gibbs_hvh,
-    #                                          outputs_info=[None, None, None, None, None, chain_start],
-    #                                          non_sequences=self.input_history,
-    #                                          n_steps=k)
-    #
-    #      mean_pred_v = nv_means[-1]
-    #
-    #      return mean_pred_v, updates
+    def get_generate_function(self, piano, orchestra,
+                              generation_length, seed_size,
+                              name="generate_sequence"):
+        # Seed_size is actually fixed by the temporal_order
+        seed_size = self.temporal_order
+
+        # Graph for the negative particle
+        v_sample, _, _, _, updates_nex_sample = \
+            self.get_negative_particle(self.v_gen, self.p_gen)
+
+        # Compile a function to get the next visible sample
+        next_sample = theano.function(
+            inputs=[self.v_gen, self.p_gen],
+            outputs=[v_sample],
+            updates=updates_nex_sample,
+            name="next_sample",
+        )
+
+        def closure(ind):
+            start_piano_ind = ind - generation_length + seed_size
+            orchestra_gen = np.zeros((generation_length, self.n_visible)).astype(theano.config.floatX)
+            # Seed orchestra
+            end_orch_init_ind = start_piano_ind
+            start_orch_init_ind = end_orch_init_ind-(self.temporal_order-1)
+            orchestra_gen[:self.temporal_order-1,:] = orchestra.get_value()[start_orch_init_ind:end_orch_init_ind,:]
+            for index in xrange(self.temporal_order-1, generation_length, 1):
+                index_piano = (ind - generation_length + 1) + index
+                # Build past vector
+                index_orchestra = np.arange(index-self.temporal_order+1, index, 1, dtype=np.int32)
+                past_orchestra = orchestra_gen[index_orchestra,:].ravel()
+                present_piano = piano.get_value()[index_piano,:]
+                past_gen = np.concatenate((present_piano, past_orchestra))
+
+                # Build initialisation vector
+                visible_gen = (np.random.uniform(0, 1, self.n_visible)).astype(theano.config.floatX)
+
+                # Get the next sample
+                v_t = next_sample(visible_gen, past_gen)
+
+                # Add this visible sample to the generated orchestra
+                orchestra_gen[index,:] = np.asarray(v_t).astype(theano.config.floatX)
+
+            return (orchestra_gen,)
+
+        return closure
