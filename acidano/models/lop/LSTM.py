@@ -97,6 +97,7 @@ class LSTM(Model_lop):
         # Variables
         self.v = T.tensor3('v', dtype=theano.config.floatX)
         self.o = T.tensor3('o', dtype=theano.config.floatX)
+        self.o_truth = T.tensor3('o_truth', dtype=theano.config.floatX)
         self.v_gen = T.matrix('v_gen', dtype=theano.config.floatX)
 
         # Test values
@@ -249,7 +250,7 @@ class LSTM(Model_lop):
         # Generate the last frame for the sequence v
         _, predicted_frame, updates_valid = self.forward_pass(v_loop, c_0, h_0)
         # Get the ground truth
-        true_frame = self.o
+        true_frame = self.o_truth
         # Measure the performances
         precision_time = precision_measure(true_frame, predicted_frame)
         recall_time = recall_measure(true_frame, predicted_frame)
@@ -275,7 +276,7 @@ class LSTM(Model_lop):
                                outputs=[precision, recall, accuracy],
                                updates=updates_valid,
                                givens={self.v: self.build_sequence(piano, index, self.n_v),
-                                       self.o: self.build_sequence(orchestra, index, self.n_o)},
+                                       self.o_truth: self.build_sequence(orchestra, index, self.n_o)},
                                name=name
                                )
 

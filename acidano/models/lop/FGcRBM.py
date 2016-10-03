@@ -77,6 +77,7 @@ class FGcRBM(Model_lop):
         self.v = T.fmatrix('v')
         self.p = T.fmatrix('p')
         self.z = T.fmatrix('z')
+        self.v_truth = T.fmatrix('v_truth')
         self.v.tag.test_value = np.random.rand(self.batch_size, self.n_v).astype(theano.config.floatX)
         self.p.tag.test_value = np.random.rand(self.batch_size, self.n_p).astype(theano.config.floatX)
         self.z.tag.test_value = np.random.rand(self.batch_size, self.n_z).astype(theano.config.floatX)
@@ -276,7 +277,7 @@ class FGcRBM(Model_lop):
         v_sample, _, updates_valid = self.get_negative_particle()
         predicted_frame = v_sample
         # Get the ground truth
-        true_frame = self.v
+        true_frame = self.v_truth
         # Measure the performances
         precision = precision_measure(true_frame, predicted_frame)
         recall = recall_measure(true_frame, predicted_frame)
@@ -292,9 +293,10 @@ class FGcRBM(Model_lop):
         return theano.function(inputs=[index],
                                outputs=[precision, recall, accuracy],
                                updates=updates_valid,
-                               givens={self.v: self.build_visible(orchestra, index),
+                               givens={self.v: (np.random.uniform(0, 1, (self.batch_size, self.n_visible))).astype(theano.config.floatX),
                                        self.p: self.build_past(orchestra, index),
-                                       self.z: self.build_latent(piano, index)},
+                                       self.z: self.build_latent(piano, index),
+                                       self.v_truth: self.build_visible(orchestra, index)},
                                name=name
                                )
 

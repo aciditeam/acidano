@@ -211,7 +211,7 @@ class RBM(Model_lop):
         v_sample, _, c_sample, _, updates_valid = self.get_negative_particle()
         predicted_frame = v_sample
         # Get the ground truth
-        true_frame = self.v
+        true_frame = self.v_truth
         # Measure the performances
         precision = precision_measure(true_frame, predicted_frame)
         recall = recall_measure(true_frame, predicted_frame)
@@ -227,8 +227,9 @@ class RBM(Model_lop):
         return theano.function(inputs=[index],
                                outputs=[precision, recall, accuracy],
                                updates=updates_valid,
-                               givens={self.v: self.build_visible(orchestra, index),
-                                       self.c: self.build_context(piano, orchestra, index)},
+                               givens={self.v: (np.random.uniform(0, 1, (self.batch_size, self.n_visible))).astype(theano.config.floatX),
+                                       self.c: self.build_context(piano, orchestra, index),
+                                       self.v_truth: self.build_visible(orchestra, index)},
                                name=name
                                )
 

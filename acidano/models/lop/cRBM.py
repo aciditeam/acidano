@@ -72,6 +72,7 @@ class cRBM(Model_lop):
         # initialize input layer for standalone CRBM or layer0 of CDBN
         self.v = T.matrix('v', dtype=theano.config.floatX)
         self.p = T.matrix('p', dtype=theano.config.floatX)
+        self.v_truth = T.matrix('v_truth', dtype=theano.config.floatX)
 
         # v_gen : random init
         # p_gen : piano[t] ^ orchestra[t-N:t-1]
@@ -222,7 +223,7 @@ class cRBM(Model_lop):
         v_sample, _, _, _, updates_valid = self.get_negative_particle(self.v, self.p)
         predicted_frame = v_sample
         # Get the ground truth
-        true_frame = self.v
+        true_frame = self.v_truth
         # Measure the performances
         precision = precision_measure(true_frame, predicted_frame)
         recall = recall_measure(true_frame, predicted_frame)
@@ -240,6 +241,7 @@ class cRBM(Model_lop):
                                outputs=[precision, recall, accuracy],
                                updates=updates_valid,
                                givens={self.v: (np.random.uniform(0, 1, (self.batch_size, self.n_visible))).astype(theano.config.floatX),
+                                       self.v_truth: self.build_visible(orchestra, index),
                                        self.p: self.build_past(piano, orchestra, index)},
                                name=name
                                )
