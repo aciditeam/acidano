@@ -256,14 +256,14 @@ class cRBM(Model_lop):
         seed_size = self.temporal_order
 
         # Graph for the negative particle
-        v_sample, _, _, _, updates_nex_sample = \
+        v_sample, _, _, _, updates_next_sample = \
             self.get_negative_particle(self.v_gen, self.p_gen)
 
         # Compile a function to get the next visible sample
         next_sample = theano.function(
             inputs=[self.v_gen, self.p_gen],
             outputs=[v_sample],
-            updates=updates_nex_sample,
+            updates=updates_next_sample,
             name="next_sample",
         )
 
