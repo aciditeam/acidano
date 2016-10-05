@@ -1,6 +1,7 @@
 import mido
 from mido import MidiFile
 import numpy as np
+from acidano.data_processing.utils.program_change_mapping import program_change_mapping
 
 
 def write_midi(pr, quantization, write_path, tempo=80):
@@ -45,6 +46,8 @@ def write_midi(pr, quantization, write_path, tempo=80):
         events = pr_to_list(matrix)
         # Tempo
         track.append(mido.MetaMessage('set_tempo', tempo=microseconds_per_beat))
+        # Add the program_change
+        track.append(mido.Message('program_change', program=program_change_mapping[instrument_name]))
         # Write events in the midi file
         for event in events:
             pitch, velocity, time = event
@@ -64,4 +67,4 @@ if __name__ == '__main__':
         bbb[i, 60-i] = 127
     pr = {'piano': aaa, 'cello': bbb}
 
-    write_midi(pr, 1, "test.mid", tempo=80)
+    write_midi(pr, 1,"test.mid", tempo=80)
