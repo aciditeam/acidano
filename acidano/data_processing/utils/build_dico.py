@@ -459,7 +459,6 @@ def build_dico():
         ur"violin and viola and violoncello and double bass": [
             ur"string ensemble",
         ]
-
     }
     dico_ordered = OrderedDict()
     for key, value in sorted(dico.items()):
@@ -470,7 +469,7 @@ def build_dico():
     return dico_ordered
 
 if __name__ == '__main__':
-    dico = buildDico()
+    dico = build_dico()
     pickle.dump(dico, open("instru_regex.p", "wb"))
 
 
