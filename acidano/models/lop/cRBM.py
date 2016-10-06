@@ -42,11 +42,12 @@ class cRBM(Model_lop):
         #   - visible : (num_batch, orchestra_dim)
         #   - past : (num_batch, orchestra_dim * (temporal_order-1) + piano_dim)
         self.batch_size = dimensions['batch_size']
-        self.n_visible = dimensions['orchestra_dim']
         self.temporal_order = dimensions['temporal_order']
-        self.n_past = (self.temporal_order-1) * dimensions['orchestra_dim'] + dimensions['piano_dim']
-
-        # Number of hidden in the RBM
+        self.n_piano = dimensions['piano_dim']
+        self.n_orchestra = dimensions['orchestra_dim']
+        #
+        self.n_visible = self.n_orchestra
+        self.n_past = (self.temporal_order-1) * self.n_orchestra + self.n_piano
         self.n_hidden = model_param['n_hidden']
         # Number of Gibbs sampling steps
         self.k = model_param['gibbs_steps']
@@ -76,10 +77,8 @@ class cRBM(Model_lop):
 
         # v_gen : random init
         # p_gen : piano[t] ^ orchestra[t-N:t-1]
-        self.v_gen = T.vector('v_gen', dtype=theano.config.floatX)
-        self.p_gen = T.vector('p_gen', dtype=theano.config.floatX)
-        self.v_gen.tag.test_value = np.random.rand(self.n_visible).astype(theano.config.floatX)
-        self.p_gen.tag.test_value = np.random.rand(self.n_past).astype(theano.config.floatX)
+        self.v_gen = T.matrix('v_gen', dtype=theano.config.floatX)
+        self.p_gen = T.matrix('p_gen', dtype=theano.config.floatX)
 
         self.rng = RandomStreams(seed=25)
 
@@ -182,17 +181,22 @@ class cRBM(Model_lop):
     ###############################
     ##       TRAIN FUNCTION
     ###############################
-    def build_past(self, piano, orchestra, index):
+    def get_index_full(self, index, batch_size, length_seq):
+        index.tag.test_value = np.linspace(50, 160, batch_size).astype(np.int32)
         # [T-1, T-2, ..., 0]
-        decreasing_time = theano.shared(np.arange(self.temporal_order-1,0,-1, dtype=np.int32))
+        decreasing_time = theano.shared(np.arange(length_seq-1,0,-1, dtype=np.int32))
         #
-        temporal_shift = T.tile(decreasing_time, (self.batch_size,1))
+        temporal_shift = T.tile(decreasing_time, (batch_size,1))
         # Reshape
-        index_full = index.reshape((self.batch_size, 1)) - temporal_shift
+        index_full = index.reshape((batch_size, 1)) - temporal_shift
+        return index_full
+
+    def build_past(self, piano, orchestra, index, batch_size, length_seq):
+        index_full = self.get_index_full(index, batch_size, length_seq)
         # Slicing
         past_orchestra = orchestra[index_full,:]\
             .ravel()\
-            .reshape((self.batch_size, (self.temporal_order-1)*self.n_visible))
+            .reshape((batch_size, (length_seq-1)*self.n_visible))
         present_piano = piano[index,:]
         # Concatenate along pitch dimension
         past = T.concatenate((present_piano, past_orchestra), axis=1)
@@ -203,7 +207,10 @@ class cRBM(Model_lop):
         visible = orchestra[index,:]
         return visible
 
-    def get_train_function(self, index, piano, orchestra, optimizer, name):
+    def get_train_function(self, piano, orchestra, optimizer, name):
+        # index to a [mini]batch : int32
+        index = T.ivector()
+
         # get the cost and the gradient corresponding to one step of CD-15
         cost, monitor, updates = self.cost_updates(optimizer)
 
@@ -211,7 +218,7 @@ class cRBM(Model_lop):
                                outputs=[cost, monitor],
                                updates=updates,
                                givens={self.v: self.build_visible(orchestra, index),
-                                       self.p: self.build_past(piano, orchestra, index)},
+                                       self.p: self.build_past(piano, orchestra, index, self.batch_size, self.temporal_order)},
                                name=name
                                )
 
@@ -233,7 +240,10 @@ class cRBM(Model_lop):
     ###############################
     ##       VALIDATION FUNCTION
     ##############################
-    def get_validation_error(self, index, piano, orchestra, name):
+    def get_validation_error(self, piano, orchestra, name):
+        # index to a [mini]batch : int32
+        index = T.ivector()
+
         precision, recall, accuracy, updates_valid = self.prediction_measure()
 
         # This time self.v is initialized randomly
@@ -242,18 +252,30 @@ class cRBM(Model_lop):
                                updates=updates_valid,
                                givens={self.v: (np.random.uniform(0, 1, (self.batch_size, self.n_visible))).astype(theano.config.floatX),
                                        self.v_truth: self.build_visible(orchestra, index),
-                                       self.p: self.build_past(piano, orchestra, index)},
+                                       self.p: self.build_past(piano, orchestra, index, self.batch_size, self.temporal_order)},
                                name=name
                                )
 
     ###############################
     ##       GENERATION
     ###############################
+    def build_past_generation(self, piano_gen, orchestra_gen, index, batch_size, length_seq):
+        past_orchestra = orchestra_gen[:,index-self.temporal_order+1:index,:]\
+            .ravel()\
+            .reshape((batch_size, (length_seq-1)*self.n_visible))
+
+        present_piano = piano_gen[:,index,:]
+        p_gen = np.concatenate((present_piano, past_orchestra), axis=1)
+        return p_gen
+
     def get_generate_function(self, piano, orchestra,
-                              generation_length, seed_size,
+                              generation_length, seed_size, batch_generation_size,
                               name="generate_sequence"):
         # Seed_size is actually fixed by the temporal_order
-        seed_size = self.temporal_order
+        seed_size = self.temporal_order - 1
+
+        self.v_gen.tag.test_value = np.random.rand(batch_generation_size, self.n_visible).astype(theano.config.floatX)
+        self.p_gen.tag.test_value = np.random.rand(batch_generation_size, self.n_past).astype(theano.config.floatX)
 
         # Graph for the negative particle
         v_sample, _, _, _, updates_next_sample = \
@@ -268,28 +290,18 @@ class cRBM(Model_lop):
         )
 
         def closure(ind):
-            start_piano_ind = ind - generation_length + seed_size
-            orchestra_gen = np.zeros((generation_length, self.n_visible)).astype(theano.config.floatX)
-            # Seed orchestra
-            end_orch_init_ind = start_piano_ind
-            start_orch_init_ind = end_orch_init_ind-(self.temporal_order-1)
-            orchestra_gen[:self.temporal_order-1,:] = orchestra.get_value()[start_orch_init_ind:end_orch_init_ind,:]
-            for index in xrange(self.temporal_order-1, generation_length, 1):
-                index_piano = (ind - generation_length + 1) + index
+            # Initialize generation matrice
+            piano_gen, orchestra_gen = self.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)
+
+            for index in xrange(seed_size, generation_length, 1):
                 # Build past vector
-                index_orchestra = np.arange(index-self.temporal_order+1, index, 1, dtype=np.int32)
-                past_orchestra = orchestra_gen[index_orchestra,:].ravel()
-                present_piano = piano.get_value()[index_piano,:]
-                past_gen = np.concatenate((present_piano, past_orchestra))
-
+                p_gen = self.build_past_generation(piano_gen, orchestra_gen, index, batch_generation_size, self.temporal_order)
                 # Build initialisation vector
-                visible_gen = (np.random.uniform(0, 1, self.n_visible)).astype(theano.config.floatX)
-
+                v_gen = (np.random.uniform(0, 1, (batch_generation_size, self.n_visible))).astype(theano.config.floatX)
                 # Get the next sample
-                v_t = next_sample(visible_gen, past_gen)
-
+                v_t = (np.asarray(next_sample(v_gen, p_gen))[0]).astype(theano.config.floatX)
                 # Add this visible sample to the generated orchestra
-                orchestra_gen[index,:] = np.asarray(v_t).astype(theano.config.floatX)
+                orchestra_gen[:,index,:] = v_t
 
             return (orchestra_gen,)
 
