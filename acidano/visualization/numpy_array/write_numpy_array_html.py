@@ -2,7 +2,7 @@
 # -*- coding: utf8 -*-
 
 
-def write_numpy_array_html(filename, dataname):
+def write_numpy_array_html(filename, dataname, d3js_source_path="//d3js.org/d3.v3.min.js"):
     text = """
 <!DOCTYPE html>
 <meta charset="utf-8">
@@ -36,7 +36,7 @@ def write_numpy_array_html(filename, dataname):
 
 <body>
     <svg class="graph"></svg>
-    <script src="/Users/leo/Recherche/GitHub_Aciditeam/acidano/acidano/visualization/d3.v3.min.js" charset="utf-8"></script>
+    <script src=""" + '"' + d3js_source_path + '"' + """ charset="utf-8"></script>
     <script>
         var dataname = '""" + dataname + """'
 
