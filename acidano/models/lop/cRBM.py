@@ -46,9 +46,9 @@ class cRBM(Model_lop):
         self.n_piano = dimensions['piano_dim']
         self.n_orchestra = dimensions['orchestra_dim']
         #
-        self.n_visible = self.n_orchestra
-        self.n_past = (self.temporal_order-1) * self.n_orchestra + self.n_piano
-        self.n_hidden = model_param['n_hidden']
+        self.n_v = self.n_orchestra
+        self.n_p = (self.temporal_order-1) * self.n_orchestra + self.n_piano
+        self.n_h = model_param['n_h']
         # Number of Gibbs sampling steps
         self.k = model_param['gibbs_steps']
 
@@ -56,11 +56,11 @@ class cRBM(Model_lop):
 
         # Weights
         if weights_initialization is None:
-            self.W = shared_normal(self.n_visible, self.n_hidden, 0.01, self.rng_np, name='W')
-            self.bv = shared_zeros((self.n_visible), name='bv')
-            self.bh = shared_zeros((self.n_hidden), name='bh')
-            self.A = shared_normal(self.n_past, self.n_visible, 0.01, self.rng_np, name='A')
-            self.B = shared_normal(self.n_past, self.n_hidden, 0.01, self.rng_np, name='B')
+            self.W = shared_normal(self.n_v, self.n_h, 0.01, self.rng_np, name='W')
+            self.bv = shared_zeros((self.n_v), name='bv')
+            self.bh = shared_zeros((self.n_h), name='bh')
+            self.A = shared_normal(self.n_p, self.n_v, 0.01, self.rng_np, name='A')
+            self.B = shared_normal(self.n_p, self.n_h, 0.01, self.rng_np, name='B')
         else:
             self.W = weights_initialization['W']
             self.bv = weights_initialization['bv']
@@ -92,7 +92,7 @@ class cRBM(Model_lop):
     @staticmethod
     def get_hp_space():
         space = (hp.qloguniform('temporal_order', log(10), log(10), 1),
-                 hp.qloguniform('n_hidden', log(100), log(5000), 10),
+                 hp.qloguniform('n_h', log(100), log(5000), 10),
                  hp.quniform('batch_size', 100, 100, 1),
                  hp.qloguniform('gibbs_steps', log(1), log(50), 1),
                  )
@@ -102,13 +102,13 @@ class cRBM(Model_lop):
     def get_param_dico(params):
         # Unpack
         if params is None:
-            temporal_order, n_hidden, batch_size, gibbs_steps = [1,2,3,5]
+            temporal_order, n_h, batch_size, gibbs_steps = [1,2,3,5]
         else:
-            temporal_order, n_hidden, batch_size, gibbs_steps = params
+            temporal_order, n_h, batch_size, gibbs_steps = params
         # Cast the params
         model_param = {
             'temporal_order': int(temporal_order),
-            'n_hidden': int(n_hidden),
+            'n_h': int(n_h),
             'batch_size': int(batch_size),
             'gibbs_steps': int(gibbs_steps)
         }
@@ -196,7 +196,7 @@ class cRBM(Model_lop):
         # Slicing
         past_orchestra = orchestra[index_full,:]\
             .ravel()\
-            .reshape((batch_size, (length_seq-1)*self.n_visible))
+            .reshape((batch_size, (length_seq-1)*self.n_v))
         present_piano = piano[index,:]
         # Concatenate along pitch dimension
         past = T.concatenate((present_piano, past_orchestra), axis=1)
@@ -250,7 +250,7 @@ class cRBM(Model_lop):
         return theano.function(inputs=[index],
                                outputs=[precision, recall, accuracy],
                                updates=updates_valid,
-                               givens={self.v: (np.random.uniform(0, 1, (self.batch_size, self.n_visible))).astype(theano.config.floatX),
+                               givens={self.v: (np.random.uniform(0, 1, (self.batch_size, self.n_v))).astype(theano.config.floatX),
                                        self.v_truth: self.build_visible(orchestra, index),
                                        self.p: self.build_past(piano, orchestra, index, self.batch_size, self.temporal_order)},
                                name=name
@@ -262,7 +262,7 @@ class cRBM(Model_lop):
     def build_past_generation(self, piano_gen, orchestra_gen, index, batch_size, length_seq):
         past_orchestra = orchestra_gen[:,index-self.temporal_order+1:index,:]\
             .ravel()\
-            .reshape((batch_size, (length_seq-1)*self.n_visible))
+            .reshape((batch_size, (length_seq-1)*self.n_v))
 
         present_piano = piano_gen[:,index,:]
         p_gen = np.concatenate((present_piano, past_orchestra), axis=1)
@@ -274,8 +274,8 @@ class cRBM(Model_lop):
         # Seed_size is actually fixed by the temporal_order
         seed_size = self.temporal_order - 1
 
-        self.v_gen.tag.test_value = np.random.rand(batch_generation_size, self.n_visible).astype(theano.config.floatX)
-        self.p_gen.tag.test_value = np.random.rand(batch_generation_size, self.n_past).astype(theano.config.floatX)
+        self.v_gen.tag.test_value = np.random.rand(batch_generation_size, self.n_v).astype(theano.config.floatX)
+        self.p_gen.tag.test_value = np.random.rand(batch_generation_size, self.n_p).astype(theano.config.floatX)
 
         # Graph for the negative particle
         v_sample, _, _, _, updates_next_sample = \
@@ -297,7 +297,7 @@ class cRBM(Model_lop):
                 # Build past vector
                 p_gen = self.build_past_generation(piano_gen, orchestra_gen, index, batch_generation_size, self.temporal_order)
                 # Build initialisation vector
-                v_gen = (np.random.uniform(0, 1, (batch_generation_size, self.n_visible))).astype(theano.config.floatX)
+                v_gen = (np.random.uniform(0, 1, (batch_generation_size, self.n_v))).astype(theano.config.floatX)
                 # Get the next sample
                 v_t = (np.asarray(next_sample(v_gen, p_gen))[0]).astype(theano.config.floatX)
                 # Add this visible sample to the generated orchestra
