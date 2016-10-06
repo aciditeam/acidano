@@ -8,7 +8,6 @@
 # pitch_class
 # binary_pr
 
-import math
 import numpy as np
 
 
