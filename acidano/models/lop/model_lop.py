@@ -2,6 +2,7 @@
 # -*- coding: utf8 -*-
 
 import numpy as np
+import theano
 import matplotlib.pyplot as plt
 from acidano.visualization.numpy_array.write_numpy_array_html import write_numpy_array_html
 from acidano.visualization.numpy_array.dumped_numpy_to_csv import dump_to_csv
@@ -52,3 +53,41 @@ class Model_lop(object):
             np.savetxt(temp_csv, param, delimiter=',')
             dump_to_csv(temp_csv, temp_csv)
             write_numpy_array_html(save_folder + '/' + param_shared.name + '.html', param_shared.name)
+
+    ###############################
+    ##       GENERATION
+    ###############################
+    ## Those functions are used for generating sequences
+    ## with originally non-sequential models
+    ## such as RBM, cRBM, FGcRBM...
+    ############
+    def build_seed(self, pr, index, batch_size, length_seq):
+        n_dim = len(pr.shape)
+        last_dim = pr.shape[n_dim-1]
+        # [T-1, T-2, ..., 0]
+        decreasing_time = np.arange(length_seq-1,-1,-1, dtype=np.int32)
+        #
+        temporal_shift = np.tile(decreasing_time, (batch_size,1))
+        # Reshape
+        index_full = index.reshape((batch_size, 1)) - temporal_shift
+        # Slicing
+        seed_pr = pr[index_full,:]\
+            .ravel()\
+            .reshape((batch_size, length_seq, last_dim))
+        return seed_pr
+
+    def initialization_generation(self, piano, orchestra, ind, generation_length, batch_generation_size, seed_size):
+        # Build piano generation
+        piano_gen = self.build_seed(piano.get_value(), ind,
+                                    batch_generation_size, generation_length)
+
+        # Build orchestra seed and cast it in the orchestration generation vector
+        first_generated_ind = (ind - generation_length + seed_size) + 1
+        last_orchestra_seed_ind = first_generated_ind - 1
+        orchestra_seed = self.build_seed(orchestra.get_value(), last_orchestra_seed_ind,
+                                         batch_generation_size, seed_size)
+
+        n_orchestra = orchestra.get_value().shape[1]
+        orchestra_gen = np.zeros((batch_generation_size, generation_length, n_orchestra)).astype(theano.config.floatX)
+        orchestra_gen[:, :seed_size, :] = orchestra_seed
+        return piano_gen, orchestra_gen
