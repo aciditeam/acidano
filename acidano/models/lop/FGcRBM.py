@@ -74,6 +74,9 @@ class FGcRBM(Model_lop):
         self.params = [self.Wvf,self.Whf,self.Wzf,self.bv,self.bh,self.Apf,self.Avf,self.Azf,self.Bpf,self.Bhf,self.Bzf]
 
         # initialize input layer for standalone CRBM or layer0 of CDBN
+        # v = orchestra(t)
+        # p = past(t) = orchestra(t-N : t-1)
+        # z = piano(t)
         self.v = T.matrix('v', dtype=theano.config.floatX)
         self.p = T.matrix('p', dtype=theano.config.floatX)
         self.z = T.matrix('z', dtype=theano.config.floatX)
@@ -83,9 +86,9 @@ class FGcRBM(Model_lop):
         self.z.tag.test_value = np.random.rand(self.batch_size, self.n_z).astype(theano.config.floatX)
 
         # Generation variables
-        self.v_gen = T.vector('v_gen', dtype=theano.config.floatX)
-        self.p_gen = T.vector('p_gen', dtype=theano.config.floatX)
-        self.z_gen = T.vector('z_gen', dtype=theano.config.floatX)
+        self.v_gen = T.matrix('v_gen', dtype=theano.config.floatX)
+        self.p_gen = T.matrix('p_gen', dtype=theano.config.floatX)
+        self.z_gen = T.matrix('z_gen', dtype=theano.config.floatX)
 
         self.rng = RandomStreams(seed=25)
 
@@ -261,7 +264,10 @@ class FGcRBM(Model_lop):
         visible = orchestra[index,:]
         return visible
 
-    def get_train_function(self, index, piano, orchestra, optimizer, name):
+    def get_train_function(self, piano, orchestra, optimizer, name):
+        # index to a [mini]batch : int32
+        index = T.ivector()
+
         # get the cost and the gradient corresponding to one step of CD-15
         cost, monitor, updates = self.cost_updates(optimizer)
 
@@ -292,7 +298,10 @@ class FGcRBM(Model_lop):
     ###############################
     ##       VALIDATION FUNCTION
     ##############################
-    def get_validation_error(self, index, piano, orchestra, name):
+    def get_validation_error(self, piano, orchestra, name):
+        # index to a [mini]batch : int32
+        index = T.ivector()
+
         precision, recall, accuracy, updates_valid = self.prediction_measure()
 
         return theano.function(inputs=[index],
@@ -307,13 +316,26 @@ class FGcRBM(Model_lop):
 
     ###############################
     ##       GENERATION
-    #   Need no seed in this model
     ###############################
+    def build_p_generation(self, orchestra_gen, index, batch_size, length_seq):
+        past_orchestra = orchestra_gen[:,index-self.temporal_order+1:index,:]\
+            .ravel()\
+            .reshape((batch_size, self.n_p))
+        return past_orchestra
+
+    def build_z_generation(self, piano_gen, index):
+        present_piano = piano_gen[:,index,:]
+        return present_piano
+
     def get_generate_function(self, piano, orchestra,
-                              generation_length, seed_size,
+                              generation_length, seed_size, batch_generation_size,
                               name="generate_sequence"):
         # Seed_size is actually fixed by the temporal_order
-        seed_size = self.temporal_order
+        seed_size = self.temporal_order - 1
+
+        # self.v_gen.tag.test_value = np.random.rand(batch_generation_size, self.n_v).astype(theano.config.floatX)
+        # self.p_gen.tag.test_value = np.random.rand(batch_generation_size, self.n_p).astype(theano.config.floatX)
+        # self.p_gen.tag.test_value = np.random.rand(batch_generation_size, self.n_p).astype(theano.config.floatX)
 
         # Graph for the negative particle
         v_sample, _, _, _, updates_next_sample = \
@@ -328,26 +350,20 @@ class FGcRBM(Model_lop):
         )
 
         def closure(ind):
-            start_piano_ind = ind - generation_length + seed_size
-            orchestra_gen = np.zeros((generation_length, self.n_v)).astype(theano.config.floatX)
-            # Seed orchestra
-            end_orch_init_ind = start_piano_ind
-            start_orch_init_ind = end_orch_init_ind-(self.temporal_order-1)
-            orchestra_gen[:self.temporal_order-1,:] = orchestra.get_value()[start_orch_init_ind:end_orch_init_ind,:]
-            for index in xrange(self.temporal_order-1, generation_length, 1):
-                index_piano = (ind - generation_length + 1) + index
+            # Initialize generation matrice
+            piano_gen, orchestra_gen = self.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)
+
+            for index in xrange(seed_size, generation_length, 1):
                 # Build past vector
-                index_orchestra = np.arange(index-self.temporal_order+1, index, 1, dtype=np.int32)
-                past_orchestra = orchestra_gen[index_orchestra,:].ravel()
-                present_piano = piano.get_value()[index_piano,:]
+                p_gen = self.build_p_generation(orchestra_gen, index, batch_generation_size, self.temporal_order)
+                # Build z vector
+                z_gen = self.build_z_generation(piano_gen, index)
                 # Build initialisation vector
-                visible_gen = (np.random.uniform(0, 1, self.n_v)).astype(theano.config.floatX)
-
+                v_gen = (np.random.uniform(0, 1, (batch_generation_size, self.n_v))).astype(theano.config.floatX)
                 # Get the next sample
-                v_t = next_sample(visible_gen, past_orchestra, present_piano)
-
+                v_t = (np.asarray(next_sample(v_gen, p_gen, z_gen))[0]).astype(theano.config.floatX)
                 # Add this visible sample to the generated orchestra
-                orchestra_gen[index,:] = np.asarray(v_t).astype(theano.config.floatX)
+                orchestra_gen[:,index,:] = v_t
 
             return (orchestra_gen,)
 
