@@ -4,8 +4,6 @@ import numpy as np
 from acidano.data_processing.utils.program_change_mapping import program_change_mapping
 from acidano.data_processing.utils.map_instrument import map_instrument
 
-from sets import Set
-
 from acidano.data_processing.utils.pianoroll_processing import sum_along_instru_dim
 from acidano.visualization.numpy_array.dumped_numpy_to_csv import dump_to_csv
 from acidano.visualization.numpy_array.write_numpy_array_html import write_numpy_array_html
@@ -75,7 +73,6 @@ def write_midi(pr, quantization, write_path, tempo=80):
                 # Get the channel
                 track.append(mido.Message('note_off', note=pitch, velocity=0, time=time))
                 notes_on_list.remove(pitch)
-                print(mido.Message('note_off', note=pitch, velocity=0, time=time))
             else:
                 if pitch in notes_on_list:
                     track.append(mido.Message('note_off', note=pitch, velocity=0, time=time))
@@ -83,7 +80,6 @@ def write_midi(pr, quantization, write_path, tempo=80):
                     time = 0
                 track.append(mido.Message('note_on', note=pitch, velocity=velocity, time=time))
                 notes_on_list.append(pitch)
-                print(mido.Message('note_on', note=pitch, velocity=velocity, time=time))
     mid.save(write_path)
     return
 
