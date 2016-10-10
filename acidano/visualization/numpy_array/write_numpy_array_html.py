@@ -2,7 +2,7 @@
 # -*- coding: utf8 -*-
 
 
-def write_numpy_array_html(filename, dataname, d3js_source_path="//d3js.org/d3.v3.min.js"):
+def write_numpy_array_html(filename, dataname, d3js_source_path):
     text = """
 <!DOCTYPE html>
 <meta charset="utf-8">

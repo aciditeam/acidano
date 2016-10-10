@@ -7,6 +7,9 @@ import matplotlib.pyplot as plt
 from acidano.visualization.numpy_array.write_numpy_array_html import write_numpy_array_html
 from acidano.visualization.numpy_array.dumped_numpy_to_csv import dump_to_csv
 
+import os
+import re
+
 
 class Model_lop(object):
     """
@@ -19,6 +22,19 @@ class Model_lop(object):
         return
 
     def weights_visualization(self, save_folder):
+        # Find acidano path
+        user_paths = os.environ['PYTHONPATH'].split(os.pathsep)
+        NOT_FOUND = True
+        for user_path in user_paths:
+            if re.search('acidano', user_path):
+                d3js_source_path = user_path + 'acidano/visualization/d3.v3.min.js'
+                NOT_FOUND = False
+                break
+        if NOT_FOUND:
+            print("No d3.js -> No visualization")
+            return
+
+        # Plot weights
         for param_shared in self.params:
             param = param_shared.get_value()
 
@@ -52,7 +68,7 @@ class Model_lop(object):
             temp_csv = save_folder + '/' + param_shared.name + '.csv'
             np.savetxt(temp_csv, param, delimiter=',')
             dump_to_csv(temp_csv, temp_csv)
-            write_numpy_array_html(save_folder + '/' + param_shared.name + '.html', param_shared.name)
+            write_numpy_array_html(save_folder + '/' + param_shared.name + '.html', param_shared.name, d3js_source_path)
 
     ###############################
     ##       GENERATION
