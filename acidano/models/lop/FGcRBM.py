@@ -19,7 +19,7 @@ from theano.tensor.shared_randomstreams import RandomStreams
 
 # Performance measures
 from acidano.utils.init import shared_normal, shared_zeros
-from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure, cross_entropy
+from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure
 
 
 class FGcRBM(Model_lop):
@@ -231,7 +231,7 @@ class FGcRBM(Model_lop):
         cost = T.mean(fe_positive) - T.mean(fe_negative)
 
         # Monitor
-        monitor = cross_entropy(self.v, mean_v) + cross_entropy(1 - self.v, 1 - mean_v)
+        monitor = T.nnet.binary_crossentropy(mean_v, self.v)
         monitor = monitor.sum() / self.batch_size
 
         # Update weights

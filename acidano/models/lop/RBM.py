@@ -161,8 +161,9 @@ class RBM(Model_lop):
         cost = T.mean(fe_positive) - T.mean(fe_negative)
 
         # Monitor
-        visible_loglike = cross_entropy(self.v, v_mean) + cross_entropy(1 - self.v, 1 - v_mean)
-        context_loglike = cross_entropy(self.c, c_mean) + cross_entropy(1 - self.c, 1 - c_mean)
+        visible_loglike = T.nnet.binary_crossentropy(v_mean, self.v)
+        context_loglike = T.nnet.binary_crossentropy(c_mean, self.c)
+        import pdb; pdb.set_trace()
         # Mean over batches
         monitor = (visible_loglike.sum() + context_loglike.sum()) / self.batch_size
 
