@@ -60,3 +60,7 @@ def precision_measure(true_frame, pred_frame):
     precision_measure = T.switch(T.eq(quotient, 0), 0, true_positive / quotient)
 
     return precision_measure
+
+
+def cross_entropy(p, q):
+    return T.xlogx.xlogy0(p, T.switch(T.eq(q, 0), 1e-20, q))
