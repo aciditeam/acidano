@@ -1,14 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
-import numpy as np
-import theano
 import matplotlib.pyplot as plt
 from acidano.visualization.numpy_array.write_numpy_array_html import write_numpy_array_html
 from acidano.visualization.numpy_array.dumped_numpy_to_csv import dump_to_csv
 
 import os
 import re
+
+import numpy as np
+
+import theano.tensor as T
+import theano
 
 
 class Model_lop(object):
@@ -71,12 +74,37 @@ class Model_lop(object):
             write_numpy_array_html(save_folder + '/' + param_shared.name + '.html', param_shared.name, d3js_source_path)
 
     ###############################
-    ##       GENERATION
+    ##       Building matrices
     ###############################
+    ######
+    ## Sequential models
+    ######
+    def build_sequence(self, pr, index, batch_size, seq_length, last_dim):
+        # [T-1, T-2, ..., 0]
+        decreasing_time = theano.shared(np.arange(seq_length-1,-1,-1, dtype=np.int32))
+        # Temporal_shift =
+        #
+        #        [i0-T+1   ; i1-T+1; i2-T+1 ; ... ; iN-T+1;
+        #         i0-T+2 ;                  ; iN-T+2;
+        #                       ...
+        #         i0 ;                      ; iN]
+        #
+        #   with T = temporal_order
+        #        N = pitch_order
+        #
+        temporal_shift = T.tile(decreasing_time, (batch_size,1))
+        # Reshape
+        index_full = index.reshape((batch_size, 1)) - temporal_shift
+        # Slicing
+        pr = pr[index_full.ravel(),:]
+        # Reshape
+        return T.reshape(pr, (batch_size, seq_length, last_dim))
+
+    ######
     ## Those functions are used for generating sequences
     ## with originally non-sequential models
     ## such as RBM, cRBM, FGcRBM...
-    ############
+    ######
     def build_seed(self, pr, index, batch_size, length_seq):
         n_dim = len(pr.shape)
         last_dim = pr.shape[n_dim-1]

@@ -98,7 +98,7 @@ class LSTM(Model_lop):
         self.v = T.tensor3('v', dtype=theano.config.floatX)
         self.o = T.tensor3('o', dtype=theano.config.floatX)
         self.o_truth = T.tensor3('o_truth', dtype=theano.config.floatX)
-        self.v_gen = T.matrix('v_gen', dtype=theano.config.floatX)
+        self.v_gen = T.tensor3('v_gen', dtype=theano.config.floatX)
 
         # Test values
         self.v.tag.test_value = np.random.rand(self.batch_size, self.temporal_order, self.n_v).astype(theano.config.floatX)
@@ -111,7 +111,7 @@ class LSTM(Model_lop):
     ###############################
     @staticmethod
     def get_hp_space():
-        space = (hp.qloguniform('temporal_order', log(10), log(100), 1),
+        space = (hp.qloguniform('temporal_order', log(20), log(20), 1),
                  hp.qloguniform('n_hidden', log(100), log(5000), 10),
                  hp.quniform('batch_size', 100, 100, 1),
                  )
@@ -205,9 +205,9 @@ class LSTM(Model_lop):
     ###############################
     ##       TRAIN FUNCTION
     ###############################
-    def build_sequence(self, pr, index, last_dim):
+    def build_sequence(self, pr, index, batch_size, seq_length, last_dim):
         # [T-1, T-2, ..., 0]
-        decreasing_time = theano.shared(np.arange(self.temporal_order-1,-1,-1, dtype=np.int32))
+        decreasing_time = theano.shared(np.arange(seq_length-1,-1,-1, dtype=np.int32))
         # Temporal_shift =
         #
         #        [i0-T+1   ; i1-T+1; i2-T+1 ; ... ; iN-T+1;
@@ -218,23 +218,26 @@ class LSTM(Model_lop):
         #   with T = temporal_order
         #        N = pitch_order
         #
-        temporal_shift = T.tile(decreasing_time, (self.batch_size,1))
+        temporal_shift = T.tile(decreasing_time, (batch_size,1))
         # Reshape
-        index_full = index.reshape((self.batch_size, 1)) - temporal_shift
+        index_full = index.reshape((batch_size, 1)) - temporal_shift
         # Slicing
         pr = pr[index_full.ravel(),:]
         # Reshape
-        return T.reshape(pr, (self.batch_size, self.temporal_order, last_dim))
+        return T.reshape(pr, (batch_size, seq_length, last_dim))
 
-    def get_train_function(self, index, piano, orchestra, optimizer, name):
+    def get_train_function(self, piano, orchestra, optimizer, name):
+        # index to a [mini]batch : int32
+        index = T.ivector()
+
         # get the cost and the gradient corresponding to one step of CD-15
         cost, monitor, updates = self.cost_updates(optimizer)
 
         return theano.function(inputs=[index],
                                outputs=[cost, monitor],
                                updates=updates,
-                               givens={self.v: self.build_sequence(piano, index, self.n_v),
-                                       self.o: self.build_sequence(orchestra, index, self.n_o)},
+                               givens={self.v: self.build_sequence(piano, index, self.batch_size, self.temporal_order, self.n_v),
+                                       self.o: self.build_sequence(orchestra, index, self.batch_size, self.temporal_order, self.n_o)},
                                name=name
                                )
 
@@ -269,48 +272,41 @@ class LSTM(Model_lop):
     ###############################
     ##       VALIDATION FUNCTION
     ##############################
-    def get_validation_error(self, index, piano, orchestra, name):
+    def get_validation_error(self, piano, orchestra, name):
+        # index to a [mini]batch : int32
+        index = T.ivector()
+
         precision, recall, accuracy, updates_valid = self.prediction_measure()
 
         return theano.function(inputs=[index],
                                outputs=[precision, recall, accuracy],
                                updates=updates_valid,
-                               givens={self.v: self.build_sequence(piano, index, self.n_v),
-                                       self.o_truth: self.build_sequence(orchestra, index, self.n_o)},
+                               givens={self.v: self.build_sequence(piano, index, self.batch_size, self.temporal_order, self.n_v),
+                                       self.o_truth: self.build_sequence(orchestra, index, self.batch_size, self.temporal_order, self.n_o)},
                                name=name
                                )
 
     ###############################
     ##       GENERATION
     ###############################
-    def build_seed(self, pr, index, generation_length, last_dim):
-        index.tag.test_value = 100
-        # [T-1, T-2, ..., 0]
-        temporal_shift = theano.shared(np.arange(generation_length-1,-1,-1, dtype=np.int32))
-        # Reshape
-        index_full = index - temporal_shift
-        # Slicing
-        pr = pr[index_full,:]
-        # Reshape
-        return pr
-
     # Generation for the LSTM model is a bit special :
     # you can't seed the orchestration with the beginning of an existing score...
-    def get_generate_function(self, piano, orchestra, generation_length, seed_size, name="generate_sequence"):
+    def get_generate_function(self, piano, orchestra, generation_length, seed_size, batch_generation_size, name="generate_sequence"):
         # Index
-        index = T.iscalar()
+        index = T.ivector()
 
         # Initial states
-        c_0_gen = T.zeros((self.n_h))
-        h_0_gen = T.zeros((self.n_h))
+        c_0_gen = T.zeros((batch_generation_size, self.n_h))
+        h_0_gen = T.zeros((batch_generation_size, self.n_h))
 
         # Index is a scalar here
-        self.v_gen.tag.test_value = np.random.rand(generation_length, self.n_v).astype(theano.config.floatX)
-        _, generated_sequence, updates_generation = self.forward_pass(self.v_gen, c_0_gen, h_0_gen)
+        self.v_gen.tag.test_value = np.random.rand(batch_generation_size, generation_length, self.n_v).astype(theano.config.floatX)
+        v_loop = self.v_gen.dimshuffle((1,0,2))
+        _, generated_sequence, updates_generation = self.forward_pass(v_loop, c_0_gen, h_0_gen)
 
         return theano.function(inputs=[index],
                                outputs=[generated_sequence],
                                updates=updates_generation,
-                               givens={self.v_gen: self.build_seed(piano, index, generation_length, self.n_v)},
+                               givens={self.v_gen: self.build_sequence(piano, index, batch_generation_size, generation_length, self.n_v)},
                                name=name
                                )
