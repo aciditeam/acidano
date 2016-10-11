@@ -19,7 +19,7 @@ from theano.tensor.shared_randomstreams import RandomStreams
 
 # Performance measures
 from acidano.utils.init import shared_normal, shared_zeros
-from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure
+from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure, cross_entropy
 
 
 class RBM(Model_lop):
@@ -161,8 +161,9 @@ class RBM(Model_lop):
         cost = T.mean(fe_positive) - T.mean(fe_negative)
 
         # Monitor
-        visible_loglike = T.xlogx.xlogy0(self.v, v_mean) + T.xlogx.xlogy0(1 - self.v, 1 - v_mean)
-        context_loglike = T.xlogx.xlogy0(self.c, c_mean) + T.xlogx.xlogy0(1 - self.c, 1 - c_mean)
+        visible_loglike = cross_entropy(self.v, v_mean) + cross_entropy(1 - self.v, 1 - v_mean)
+        context_loglike = cross_entropy(self.c, c_mean) + cross_entropy(1 - self.c, 1 - c_mean)
+        # Mean over batches
         monitor = (visible_loglike.sum() + context_loglike.sum()) / self.batch_size
 
         # Update weights
