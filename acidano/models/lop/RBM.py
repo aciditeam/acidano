@@ -216,6 +216,7 @@ class RBM(Model_lop):
     ##       PREDICTION
     ###############################
     def prediction_measure(self):
+        self.v = self.rng.uniform(low=0, high=1, size=(self.batch_size, self.n_v)).astype(theano.config.floatX)
         # Generate the last frame for the sequence v
         v_sample, _, c_sample, _, updates_valid = self.get_negative_particle(self.v, self.c)
         predicted_frame = v_sample
@@ -239,8 +240,7 @@ class RBM(Model_lop):
         return theano.function(inputs=[index],
                                outputs=[precision, recall, accuracy],
                                updates=updates_valid,
-                               givens={self.v: (np.random.uniform(0, 1, (self.batch_size, self.n_v))).astype(theano.config.floatX),
-                                       self.c: self.build_context(piano, orchestra, index),
+                               givens={self.c: self.build_context(piano, orchestra, index),
                                        self.v_truth: self.build_visible(orchestra, index)},
                                name=name
                                )

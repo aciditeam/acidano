@@ -284,6 +284,7 @@ class FGcRBM(Model_lop):
     ##       PREDICTION
     ###############################
     def prediction_measure(self):
+        self.v = self.rng.uniform(low=0, high=1, size=(self.batch_size, self.n_v)).astype(theano.config.floatX)
         # Generate the last frame for the sequence v
         v_sample, _, _, _, updates_valid = self.get_negative_particle(self.v, self.p, self.z)
         predicted_frame = v_sample
@@ -307,8 +308,7 @@ class FGcRBM(Model_lop):
         return theano.function(inputs=[index],
                                outputs=[precision, recall, accuracy],
                                updates=updates_valid,
-                               givens={self.v: (np.random.uniform(0, 1, (self.batch_size, self.n_v))).astype(theano.config.floatX),
-                                       self.p: self.build_past(orchestra, index),
+                               givens={self.p: self.build_past(orchestra, index),
                                        self.z: self.build_latent(piano, index),
                                        self.v_truth: self.build_visible(orchestra, index)},
                                name=name
