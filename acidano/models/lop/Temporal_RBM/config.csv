@@ -1,2 +1,0 @@
-temporal_granularity,n_hidden,temporal_order,learning_rate,training_epochs,batch_size,gibbs_sampling_step_test
-frame_level,2000,2,0.1,500,100,10

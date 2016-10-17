@@ -7,18 +7,20 @@ from numpy.random import RandomState
 
 
 # Initialization functions
-def shared_normal(num_rows, num_cols, scale=1, rng=None):
+def shared_normal(num_rows, num_cols, scale=1, rng=None, name=None):
     '''Initialize a matrix shared variable with normally distributed
     elements.'''
     if rng is None:
         rng = RandomState(seed=np.random.randint(1 << 30))
     return theano.shared(rng.normal(
-        scale=scale, size=(num_rows, num_cols)).astype(theano.config.floatX))
+        scale=scale, size=(num_rows, num_cols)).astype(theano.config.floatX),
+        name=name)
 
 
-def shared_zeros(*shape):
+def shared_zeros(shape, name=None):
     '''Initialize a vector shared variable with zero elements.'''
-    return theano.shared(np.zeros(shape, dtype=theano.config.floatX))
+    return theano.shared(np.zeros(shape, dtype=theano.config.floatX),
+                         name=name)
 
 
 def castX(value):

@@ -1,6 +1,12 @@
 import mido
 from mido import MidiFile
 import numpy as np
+from acidano.data_processing.utils.program_change_mapping import program_change_mapping
+from acidano.data_processing.utils.map_instrument import map_instrument
+
+from acidano.data_processing.utils.pianoroll_processing import sum_along_instru_dim
+from acidano.visualization.numpy_array.dumped_numpy_to_csv import dump_to_csv
+from acidano.visualization.numpy_array.write_numpy_array_html import write_numpy_array_html
 
 
 def write_midi(pr, quantization, write_path, tempo=80):
@@ -12,16 +18,13 @@ def write_midi(pr, quantization, write_path, tempo=80):
         list_event = []
         for t in range(T):
             pr_t = pr[t]
-            if (pr_t != pr_tm1).any():
-                # mask all values in pr_t except the new ones
-                mask = np.ma.getmask(np.ma.masked_where(pr_t != pr_tm1, pr_t))
-                # print mask
-                # import pdb; pdb.set_trace()
+            mask = (pr_t != pr_tm1)
+            if (mask).any():
                 for n in range(N):
                     if mask[n]:
                         pitch = n
                         velocity = int(pr_t[n])
-                        # Time is increment since last event
+                        # Time is incremented since last event
                         t_event = t - t_last
                         t_last = t
                         list_event.append((pitch, velocity, t_event))
@@ -45,23 +48,55 @@ def write_midi(pr, quantization, write_path, tempo=80):
         events = pr_to_list(matrix)
         # Tempo
         track.append(mido.MetaMessage('set_tempo', tempo=microseconds_per_beat))
+        # Add the program_change
+        try:
+            program = program_change_mapping[instrument_name]
+        except:
+            # Defaul is piano
+            print instrument_name + " not in the program_change mapping"
+            print "Default value is 1 (piano)"
+            print "Check acidano/data_processing/utils/program_change_mapping.py"
+            program = 1
+        track.append(mido.Message('program_change', program=program))
+
+        # This list is required to shut down
+        # notes that are on, intensity modified, then off only 1 time
+        # Example :
+        # (60,20,0)
+        # (60,40,10)
+        # (60,0,15)
+        notes_on_list = []
         # Write events in the midi file
         for event in events:
             pitch, velocity, time = event
             if velocity == 0:
-                track.append(mido.Message('note_off', note=pitch, time=time))
+                # Get the channel
+                track.append(mido.Message('note_off', note=pitch, velocity=0, time=time))
+                notes_on_list.remove(pitch)
             else:
+                if pitch in notes_on_list:
+                    track.append(mido.Message('note_off', note=pitch, velocity=0, time=time))
+                    notes_on_list.remove(pitch)
+                    time = 0
                 track.append(mido.Message('note_on', note=pitch, velocity=velocity, time=time))
+                notes_on_list.append(pitch)
     mid.save(write_path)
     return
 
 
 if __name__ == '__main__':
-    aaa = np.zeros((10, 128))
-    bbb = np.zeros((10, 128))
-    for i in range(10):
-        aaa[i, 60+i] = 127
-        bbb[i, 60-i] = 127
-    pr = {'piano': aaa, 'cello': bbb}
+    from acidano.data_processing.midi.read_midi import Read_midi
+    song_path = "/Users/leo/Recherche/GitHub_Aciditeam/database/Orchestration/Orchestration_checked/bouliane/0/Beethoven_Symph3_ii(1-8,105-115)_ORCH+REDUC+piano_orch.mid"
+    csv_path = "/Users/leo/Recherche/GitHub_Aciditeam/database/Orchestration/Orchestration_checked/bouliane/0/Beethoven_Symph3_ii(1-8,105-115)_ORCH+REDUC+piano_orch.csv"
+    quantization = 60
+    reader = Read_midi(song_path, quantization)
+    pr = reader.read_file()
+    pr_map = map_instrument(pr, csv_path)
 
-    write_midi(pr, 1, "test.mid", tempo=80)
+    pr_flat = sum_along_instru_dim(pr_map)
+    temp_csv = 'temp.csv'
+    np.savetxt(temp_csv, pr_flat, delimiter=',')
+    dump_to_csv(temp_csv, temp_csv)
+    write_numpy_array_html('pr.html', 'temp')
+
+    write_midi(pr_map, quantization,"test.mid", tempo=30)

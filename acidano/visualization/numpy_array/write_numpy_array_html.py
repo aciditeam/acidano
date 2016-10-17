@@ -1,8 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
+import os
+import re
 
-def write_numpy_array_html(filename, dataname):
+
+def write_numpy_array_html(filename, dataname, d3js_source_path=None):
+    if d3js_source_path is None:
+        user_paths = os.environ['PYTHONPATH'].split(os.pathsep)
+        for user_path in user_paths:
+            if re.search('acidano', user_path):
+                d3js_source_path = user_path + 'acidano/visualization/d3.v3.min.js'
+                break
+
     text = """
 <!DOCTYPE html>
 <meta charset="utf-8">
@@ -36,7 +46,7 @@ def write_numpy_array_html(filename, dataname):
 
 <body>
     <svg class="graph"></svg>
-    <script src="/Users/leo/Recherche/GitHub_Aciditeam/acidano/acidano/visualization/d3.v3.min.js" charset="utf-8"></script>
+    <script src=""" + '"' + d3js_source_path + '"' + """ charset="utf-8"></script>
     <script>
         var dataname = '""" + dataname + """'
 

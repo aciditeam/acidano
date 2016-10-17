@@ -10,6 +10,9 @@ import numpy as np
 def dump_to_csv(path_to_data='dump.csv', save_path='data.csv'):
     with open(path_to_data, 'rb') as f:
         mat = np.genfromtxt(f, delimiter=',', dtype=None)
+        # Deal with vector
+        if len(mat.shape)==1:
+            mat = np.expand_dims(mat, axis=1)
         list_point = mat_to_csv(mat)
     with open(save_path, 'wb') as f_handle:
         writer = csv.writer(f_handle, delimiter=',')
