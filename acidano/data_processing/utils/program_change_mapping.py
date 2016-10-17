@@ -138,4 +138,10 @@ program_change_mapping = {
     'trombone bass': 58,
     'violoncello': 43,
     'harp': 47,
+    'cornet': 57,
+    'euphonium': 59,
+    'tam tam': 118,
+    'triangle': 81,
+    'voice': 54,
+    'cymbal': 120,
 }
