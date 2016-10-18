@@ -15,7 +15,7 @@ from numpy.random import RandomState
 # Theano
 import theano
 import theano.tensor as T
-from theano.tensor.shared_randomstreams import RandomStreams
+from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 # Performance measures
 from acidano.utils.init import shared_normal, shared_zeros

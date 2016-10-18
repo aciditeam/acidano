@@ -24,7 +24,7 @@ from numpy.random import RandomState
 # Theano
 import theano
 import theano.tensor as T
-from theano.tensor.shared_randomstreams import RandomStreams
+from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 # Performance measures
 from acidano.utils.init import shared_normal, shared_zeros
@@ -226,7 +226,7 @@ class cRBM(Model_lop):
     ##       PREDICTION
     ###############################
     def prediction_measure(self):
-        self.v = self.rng.uniform(low=0, high=1, size=(self.batch_size, self.n_v)).astype(theano.config.floatX),
+        self.v = self.rng.uniform((self.batch_size, self.n_v), 0, 1, dtype=theano.config.floatX)
         # Generate the last frame for the sequence v
         v_sample, _, _, _, updates_valid = self.get_negative_particle(self.v, self.p)
         predicted_frame = v_sample
@@ -292,7 +292,6 @@ class cRBM(Model_lop):
         def closure(ind):
             # Initialize generation matrice
             piano_gen, orchestra_gen = self.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)
-            import pdb; pdb.set_trace()
             for index in xrange(seed_size, generation_length, 1):
                 # Build past vector
                 p_gen = self.build_past_generation(piano_gen, orchestra_gen, index, batch_generation_size, self.temporal_order)

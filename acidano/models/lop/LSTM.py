@@ -15,7 +15,7 @@ from numpy.random import RandomState
 # Theano
 import theano
 import theano.tensor as T
-from theano.tensor.shared_randomstreams import RandomStreams
+from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 # Propagation
 from acidano.utils.forward import propup_sigmoid, propup_tanh

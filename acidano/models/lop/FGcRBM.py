@@ -15,7 +15,7 @@ from numpy.random import RandomState
 # Theano
 import theano
 import theano.tensor as T
-from theano.tensor.shared_randomstreams import RandomStreams
+from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 # Performance measures
 from acidano.utils.init import shared_normal, shared_zeros
@@ -284,7 +284,7 @@ class FGcRBM(Model_lop):
     ##       PREDICTION
     ###############################
     def prediction_measure(self):
-        self.v = self.rng.uniform(low=0, high=1, size=(self.batch_size, self.n_v)).astype(theano.config.floatX)
+        self.v = self.rng.uniform((self.batch_size, self.n_v), 0, 1, dtype=theano.config.floatX)
         # Generate the last frame for the sequence v
         v_sample, _, _, _, updates_valid = self.get_negative_particle(self.v, self.p, self.z)
         predicted_frame = v_sample
