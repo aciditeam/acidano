@@ -37,8 +37,7 @@ class Model_lop(object):
             print("No d3.js -> No visualization")
             return
 
-        # Plot weights
-        for param_shared in self.params:
+        def plot_process(param_shared):
             param = param_shared.get_value()
 
             # Get mean, std and write title
@@ -72,6 +71,19 @@ class Model_lop(object):
             np.savetxt(temp_csv, param, delimiter=',')
             dump_to_csv(temp_csv, temp_csv)
             write_numpy_array_html(save_folder + '/' + param_shared.name + '.html', param_shared.name, d3js_source_path)
+
+        # Plot weights
+        for param_shared in self.params:
+            plot_process(param_shared)
+            ## USELESS ???
+            # # Is it a stacked structure ?
+            # if isinstance(param_shared, dict):
+            #     import pdb; pdb.set_trace()
+            #     # Pop first layer and
+            #     for param_shared_layer in param_shared.itervalues():
+            #         plot_process(param_shared_layer)
+            # else:
+            #     plot_process(param_shared)
 
     ###############################
     ##       Building matrices

@@ -178,7 +178,7 @@ class cRnnRbm(Model_lop):
             fn=self.recurrence,
             sequences=[v, c], outputs_info=[u0, None, None])
 
-        # Reshuffle the variables
+        # Reshuffle the variables and keep trace
         self.bv_dynamic = bv_t.dimshuffle((1,0,2))
         self.bh_dynamic = bh_t.dimshuffle((1,0,2))
 

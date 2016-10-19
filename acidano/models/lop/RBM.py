@@ -163,7 +163,7 @@ class RBM(Model_lop):
         # Monitor
         visible_loglike = T.nnet.binary_crossentropy(v_mean, self.v)
         context_loglike = T.nnet.binary_crossentropy(c_mean, self.c)
-        import pdb; pdb.set_trace()
+
         # Mean over batches
         monitor = (visible_loglike.sum() + context_loglike.sum()) / self.batch_size
 
