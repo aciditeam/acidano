@@ -7,13 +7,13 @@ from numpy.random import RandomState
 
 
 # Initialization functions
-def shared_normal(num_rows, num_cols, scale=1, rng=None, name=None):
+def shared_normal(shape, scale=1, rng=None, name=None):
     '''Initialize a matrix shared variable with normally distributed
     elements.'''
     if rng is None:
         rng = RandomState(seed=np.random.randint(1 << 30))
     return theano.shared(rng.normal(
-        scale=scale, size=(num_rows, num_cols)).astype(theano.config.floatX),
+        scale=scale, size=shape).astype(theano.config.floatX),
         name=name)
 
 

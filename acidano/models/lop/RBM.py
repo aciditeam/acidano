@@ -46,8 +46,8 @@ class RBM(Model_lop):
 
         # Weights
         if weights_initialization is None:
-            self.W = shared_normal(self.n_v, self.n_h, 0.01, self.rng_np, name='W')
-            self.C = shared_normal(self.n_c, self.n_h, 0.01, self.rng_np, name='C')
+            self.W = shared_normal((self.n_v, self.n_h), 0.01, self.rng_np, name='W')
+            self.C = shared_normal((self.n_c, self.n_h), 0.01, self.rng_np, name='C')
             self.bv = shared_zeros((self.n_v), name='bv')
             self.bc = shared_zeros((self.n_c), name='bc')
             self.bh = shared_zeros((self.n_h), name='bh')

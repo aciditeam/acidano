@@ -74,25 +74,25 @@ class LSTM_ml(Model_lop):
                     n_htm1 = self.n_hs[layer-1]
                 n_ht = self.n_hs[layer]
                 # input gate
-                self.L_vi[layer] = shared_normal(n_htm1, n_ht, 0.01, name='L_vi'+str(layer))
-                self.L_hi[layer] = shared_normal(n_ht, n_ht, 0.01, name='L_vi'+str(layer))
+                self.L_vi[layer] = shared_normal((n_htm1, n_ht), 0.01, name='L_vi'+str(layer))
+                self.L_hi[layer] = shared_normal((n_ht, n_ht), 0.01, name='L_vi'+str(layer))
                 self.b_i[layer] = shared_zeros((n_ht), name='b_i'+str(layer))
                 # Internal cell
-                self.L_vc[layer] = shared_normal(n_htm1, n_ht, 0.01, name='L_vc'+str(layer))
-                self.L_hc[layer] = shared_normal(n_ht, n_ht, 0.01, name='L_hc'+str(layer))
+                self.L_vc[layer] = shared_normal((n_htm1, n_ht), 0.01, name='L_vc'+str(layer))
+                self.L_hc[layer] = shared_normal((n_ht, n_ht), 0.01, name='L_hc'+str(layer))
                 self.b_c[layer] = shared_zeros((n_ht), name='b_c'+str(layer))
                 # Forget gate
-                self.L_vf[layer] = shared_normal(n_htm1, n_ht, 0.01, name='L_vf'+str(layer))
-                self.L_hf[layer] = shared_normal(n_ht, n_ht, 0.01, name='L_hf'+str(layer))
+                self.L_vf[layer] = shared_normal((n_htm1, n_ht), 0.01, name='L_vf'+str(layer))
+                self.L_hf[layer] = shared_normal((n_ht, n_ht), 0.01, name='L_hf'+str(layer))
                 self.b_f[layer] = shared_zeros((n_ht), name='b_f'+str(layer))
                 # Output
                 # No L_co... as in Theano tuto
-                self.L_vo[layer] = shared_normal(n_htm1, n_ht, 0.01, name='L_vo'+str(layer))
-                self.L_ho[layer] = shared_normal(n_ht, n_ht, 0.01, name='L_ho'+str(layer))
+                self.L_vo[layer] = shared_normal((n_htm1, n_ht), 0.01, name='L_vo'+str(layer))
+                self.L_ho[layer] = shared_normal((n_ht, n_ht), 0.01, name='L_ho'+str(layer))
                 self.b_o[layer] = shared_zeros((n_ht), name='b_o'+str(layer))
 
             # Last predictive layer
-            self.W = shared_normal(self.n_hs[-1], self.n_o, 0.01, name='W')
+            self.W = shared_normal((self.n_hs[-1], self.n_o), 0.01, name='W')
             self.b = shared_zeros((self.n_o), name='b')
         else:
             # Layer weights

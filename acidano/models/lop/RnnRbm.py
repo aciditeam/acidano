@@ -50,17 +50,17 @@ class RnnRbm(Model_lop):
 
         # Weights
         if weights_initialization is None:
-            self.P = shared_normal(self.n_piano, self.n_hidden, 0.01, self.rng_np, name='P')
+            self.P = shared_normal((self.n_piano, self.n_hidden), 0.01, self.rng_np, name='P')
             self.bp = shared_zeros(self.n_piano, name='bp')
-            self.O = shared_normal(self.n_orchestra, self.n_hidden, 0.01, self.rng_np, name='O')
+            self.O = shared_normal((self.n_orchestra, self.n_hidden), 0.01, self.rng_np, name='O')
             self.bo = shared_zeros(self.n_orchestra, name='bo')
             self.bh = shared_zeros(self.n_hidden, name='bh')
-            self.Wuh = shared_normal(self.n_hidden_recurrent, self.n_hidden, 0.0001, self.rng_np, name='Wuh')
-            self.Wup = shared_normal(self.n_hidden_recurrent, self.n_piano, 0.0001, self.rng_np, name='Wup')
-            self.Wuo = shared_normal(self.n_hidden_recurrent, self.n_orchestra, 0.0001, self.rng_np, name='Wuo')
-            self.Wpu = shared_normal(self.n_piano, self.n_hidden_recurrent, 0.0001, self.rng_np, name='Wpu')
-            self.Wou = shared_normal(self.n_orchestra, self.n_hidden_recurrent, 0.0001, self.rng_np, name='Wou')
-            self.Wuu = shared_normal(self.n_hidden_recurrent, self.n_hidden_recurrent, 0.0001, self.rng_np, name='Wuu')
+            self.Wuh = shared_normal((self.n_hidden_recurrent, self.n_hidden), 0.0001, self.rng_np, name='Wuh')
+            self.Wup = shared_normal((self.n_hidden_recurrent, self.n_piano), 0.0001, self.rng_np, name='Wup')
+            self.Wuo = shared_normal((self.n_hidden_recurrent, self.n_orchestra), 0.0001, self.rng_np, name='Wuo')
+            self.Wpu = shared_normal((self.n_piano, self.n_hidden_recurrent), 0.0001, self.rng_np, name='Wpu')
+            self.Wou = shared_normal((self.n_orchestra, self.n_hidden_recurrent), 0.0001, self.rng_np, name='Wou')
+            self.Wuu = shared_normal((self.n_hidden_recurrent, self.n_hidden_recurrent), 0.0001, self.rng_np, name='Wuu')
             self.bu = shared_zeros(self.n_hidden_recurrent, name='bu')
         else:
             self.P = weights_initialization['P']

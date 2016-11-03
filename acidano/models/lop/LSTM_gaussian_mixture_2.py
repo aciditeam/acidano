@@ -86,32 +86,32 @@ class LSTM_gaussian_mixture_2(Model_lop):
                     n_htm1 = self.n_hs[layer-1]
                 n_ht = self.n_hs[layer]
                 # input gate
-                self.L_vi[layer] = shared_normal(n_htm1, n_ht, 0.01, name='L_vi'+str(layer))
-                self.L_hi[layer] = shared_normal(n_ht, n_ht, 0.01, name='L_vi'+str(layer))
+                self.L_vi[layer] = shared_normal((n_htm1, n_ht), 0.01, name='L_vi'+str(layer))
+                self.L_hi[layer] = shared_normal((n_ht, n_ht), 0.01, name='L_vi'+str(layer))
                 self.b_i[layer] = shared_zeros((n_ht), name='b_i'+str(layer))
                 # Internal cell
-                self.L_vc[layer] = shared_normal(n_htm1, n_ht, 0.01, name='L_vc'+str(layer))
-                self.L_hc[layer] = shared_normal(n_ht, n_ht, 0.01, name='L_hc'+str(layer))
+                self.L_vc[layer] = shared_normal((n_htm1, n_ht), 0.01, name='L_vc'+str(layer))
+                self.L_hc[layer] = shared_normal((n_ht, n_ht), 0.01, name='L_hc'+str(layer))
                 self.b_c[layer] = shared_zeros((n_ht), name='b_c'+str(layer))
                 # Forget gate
-                self.L_vf[layer] = shared_normal(n_htm1, n_ht, 0.01, name='L_vf'+str(layer))
-                self.L_hf[layer] = shared_normal(n_ht, n_ht, 0.01, name='L_hf'+str(layer))
+                self.L_vf[layer] = shared_normal((n_htm1, n_ht), 0.01, name='L_vf'+str(layer))
+                self.L_hf[layer] = shared_normal((n_ht, n_ht), 0.01, name='L_hf'+str(layer))
                 self.b_f[layer] = shared_zeros((n_ht), name='b_f'+str(layer))
                 # Output
                 # No L_co... as in Theano tuto
-                self.L_vo[layer] = shared_normal(n_htm1, n_ht, 0.01, name='L_vo'+str(layer))
-                self.L_ho[layer] = shared_normal(n_ht, n_ht, 0.01, name='L_ho'+str(layer))
+                self.L_vo[layer] = shared_normal((n_htm1, n_ht), 0.01, name='L_vo'+str(layer))
+                self.L_ho[layer] = shared_normal((n_ht, n_ht), 0.01, name='L_ho'+str(layer))
                 self.b_o[layer] = shared_zeros((n_ht), name='b_o'+str(layer))
 
             # Last layer split between three nets predicting :
             #   - mean
             #   - std
             #   - weights in the mixture
-            self.W_mean = shared_normal(self.n_hs[-1], self.K_gaussian * self.n_o, 0.01, name='W_mean')
+            self.W_mean = shared_normal((self.n_hs)[-1], self.K_gaussian * self.n_o, 0.01, name='W_mean')
             self.b_mean = shared_zeros((self.K_gaussian * self.n_o), name='b_mean')
-            self.W_std = shared_normal(self.n_hs[-1], self.K_gaussian * self.n_o, 1, name='W_std')
+            self.W_std = shared_normal((self.n_hs)[-1], self.K_gaussian * self.n_o, 1, name='W_std')
             self.b_std = shared_zeros((self.K_gaussian * self.n_o), name='b_std')
-            self.W_weights = shared_normal(self.n_hs[-1], self.K_gaussian * self.n_o, 0.01, name='W_weights')
+            self.W_weights = shared_normal((self.n_hs)[-1], self.K_gaussian * self.n_o, 0.01, name='W_weights')
             self.b_weights = shared_zeros((self.K_gaussian * self.n_o), name='b_weights')
         else:
             # Layer weights

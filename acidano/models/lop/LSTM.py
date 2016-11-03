@@ -54,25 +54,25 @@ class LSTM(Model_lop):
         if weights_initialization is None:
             # Weights
             # input gate
-            self.L_vi = shared_normal(self.n_v, self.n_h, 0.01, name='L_vi')
-            self.L_hi = shared_normal(self.n_h, self.n_h, 0.01, name='L_hi')
+            self.L_vi = shared_normal((self.n_v, self.n_h), 0.01, name='L_vi')
+            self.L_hi = shared_normal((self.n_h, self.n_h), 0.01, name='L_hi')
             self.b_i = shared_zeros((self.n_h), name='b_i')
             # Internal cell
-            self.L_vc = shared_normal(self.n_v, self.n_h, 0.01, name='L_vc')
-            self.L_hc = shared_normal(self.n_h, self.n_h, 0.01, name='L_hc')
+            self.L_vc = shared_normal((self.n_v, self.n_h), 0.01, name='L_vc')
+            self.L_hc = shared_normal((self.n_h, self.n_h), 0.01, name='L_hc')
             self.b_c = shared_zeros((self.n_h), name='b_c')
             # Forget gate
-            self.L_vf = shared_normal(self.n_v, self.n_h, 0.01, name='L_vf')
-            self.L_hf = shared_normal(self.n_h, self.n_h, 0.01, name='L_hf')
+            self.L_vf = shared_normal((self.n_v, self.n_h), 0.01, name='L_vf')
+            self.L_hf = shared_normal((self.n_h, self.n_h), 0.01, name='L_hf')
             self.b_f = shared_zeros((self.n_h), name='b_f')
             # Output
             # No L_co... as in Theano tuto
-            self.L_vo = shared_normal(self.n_v, self.n_h, 0.01, name='L_vo')
-            self.L_ho = shared_normal(self.n_h, self.n_h, 0.01, name='L_ho')
+            self.L_vo = shared_normal((self.n_v, self.n_h), 0.01, name='L_vo')
+            self.L_ho = shared_normal((self.n_h, self.n_h), 0.01, name='L_ho')
             self.b_o = shared_zeros((self.n_h), name='b_o')
 
             # Last predictive layer
-            self.W = shared_normal(self.n_h, self.n_o, 0.01, name='W')
+            self.W = shared_normal((self.n_h, self.n_o), 0.01, name='W')
             self.b = shared_zeros((self.n_o), name='b')
         else:
             self.L_vi = weights_initialization['L_vi']

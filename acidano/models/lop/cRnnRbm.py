@@ -53,17 +53,17 @@ class cRnnRbm(Model_lop):
         # Weights
         if weights_initialization is None:
             # RBM weights
-            self.W = shared_normal(self.n_v, self.n_h, 0.01, self.rng_np, name='W')
+            self.W = shared_normal((self.n_v, self.n_h), 0.01, self.rng_np, name='W')
             self.bv = shared_zeros(self.n_v, name='bv')
             self.bh = shared_zeros(self.n_h, name='bh')
             # Conditional weights
-            self.Wcv = shared_normal(self.n_c, self.n_v, 0.01, self.rng_np, name='Wcv')
-            self.Wch = shared_normal(self.n_c, self.n_h, 0.01, self.rng_np, name='Wch')
+            self.Wcv = shared_normal((self.n_c, self.n_v), 0.01, self.rng_np, name='Wcv')
+            self.Wch = shared_normal((self.n_c, self.n_h), 0.01, self.rng_np, name='Wch')
             # Temporal weights
-            self.Wuh = shared_normal(self.n_u, self.n_h, 0.0001, self.rng_np, name='Wuh')
-            self.Wuv = shared_normal(self.n_u, self.n_v, 0.0001, self.rng_np, name='Wuv')
-            self.Wvu = shared_normal(self.n_v, self.n_u, 0.0001, self.rng_np, name='Wvu')
-            self.Wuu = shared_normal(self.n_u, self.n_u, 0.0001, self.rng_np, name='Wuu')
+            self.Wuh = shared_normal((self.n_u, self.n_h), 0.0001, self.rng_np, name='Wuh')
+            self.Wuv = shared_normal((self.n_u, self.n_v), 0.0001, self.rng_np, name='Wuv')
+            self.Wvu = shared_normal((self.n_v, self.n_u), 0.0001, self.rng_np, name='Wvu')
+            self.Wuu = shared_normal((self.n_u, self.n_u), 0.0001, self.rng_np, name='Wuu')
             self.bu = shared_zeros(self.n_u, name='bu')
         else:
             self.W = weights_initialization['W']

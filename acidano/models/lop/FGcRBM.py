@@ -47,17 +47,17 @@ class FGcRBM(Model_lop):
 
         # Weights
         if weights_initialization is None:
-            self.Wvf = shared_normal(self.n_v, self.n_f, 0.01, self.rng_np, name='Wvf')
-            self.Whf = shared_normal(self.n_h, self.n_f, 0.01, self.rng_np, name='Whf')
-            self.Wzf = shared_normal(self.n_z, self.n_f, 0.01, self.rng_np, name='Wzf')
+            self.Wvf = shared_normal((self.n_v, self.n_f), 0.01, self.rng_np, name='Wvf')
+            self.Whf = shared_normal((self.n_h, self.n_f), 0.01, self.rng_np, name='Whf')
+            self.Wzf = shared_normal((self.n_z, self.n_f), 0.01, self.rng_np, name='Wzf')
             self.bv = shared_zeros((self.n_v), name='bv')
             self.bh = shared_zeros((self.n_h), name='bh')
-            self.Apf = shared_normal(self.n_p, self.n_f, 0.01, self.rng_np, name='Apf')
-            self.Avf = shared_normal(self.n_v, self.n_f, 0.01, self.rng_np, name='Avf')
-            self.Azf = shared_normal(self.n_z, self.n_f, 0.01, self.rng_np, name='Azf')
-            self.Bpf = shared_normal(self.n_p, self.n_f, 0.01, self.rng_np, name='Bpf')
-            self.Bhf = shared_normal(self.n_h, self.n_f, 0.01, self.rng_np, name='Bhf')
-            self.Bzf = shared_normal(self.n_z, self.n_f, 0.01, self.rng_np, name='Bzf')
+            self.Apf = shared_normal((self.n_p, self.n_f), 0.01, self.rng_np, name='Apf')
+            self.Avf = shared_normal((self.n_v, self.n_f), 0.01, self.rng_np, name='Avf')
+            self.Azf = shared_normal((self.n_z, self.n_f), 0.01, self.rng_np, name='Azf')
+            self.Bpf = shared_normal((self.n_p, self.n_f), 0.01, self.rng_np, name='Bpf')
+            self.Bhf = shared_normal((self.n_h, self.n_f), 0.01, self.rng_np, name='Bhf')
+            self.Bzf = shared_normal((self.n_z, self.n_f), 0.01, self.rng_np, name='Bzf')
         else:
             self.Wvf = weights_initialization['Wvf']
             self.Whf = weights_initialization['Whf']

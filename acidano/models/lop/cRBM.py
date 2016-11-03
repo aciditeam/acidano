@@ -56,11 +56,11 @@ class cRBM(Model_lop):
 
         # Weights
         if weights_initialization is None:
-            self.W = shared_normal(self.n_v, self.n_h, 0.01, self.rng_np, name='W')
+            self.W = shared_normal((self.n_v, self.n_h), 0.01, self.rng_np, name='W')
             self.bv = shared_zeros((self.n_v), name='bv')
             self.bh = shared_zeros((self.n_h), name='bh')
-            self.A = shared_normal(self.n_p, self.n_v, 0.01, self.rng_np, name='A')
-            self.B = shared_normal(self.n_p, self.n_h, 0.01, self.rng_np, name='B')
+            self.A = shared_normal((self.n_p, self.n_v), 0.01, self.rng_np, name='A')
+            self.B = shared_normal((self.n_p, self.n_h), 0.01, self.rng_np, name='B')
         else:
             self.W = weights_initialization['W']
             self.bv = weights_initialization['bv']
