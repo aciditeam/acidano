@@ -205,27 +205,6 @@ class LSTM(Model_lop):
     ###############################
     ##       TRAIN FUNCTION
     ###############################
-    def build_sequence(self, pr, index, batch_size, seq_length, last_dim):
-        # [T-1, T-2, ..., 0]
-        decreasing_time = theano.shared(np.arange(seq_length-1,-1,-1, dtype=np.int32))
-        # Temporal_shift =
-        #
-        #        [i0-T+1   ; i1-T+1; i2-T+1 ; ... ; iN-T+1;
-        #         i0-T+2 ;                  ; iN-T+2;
-        #                       ...
-        #         i0 ;                      ; iN]
-        #
-        #   with T = temporal_order
-        #        N = pitch_order
-        #
-        temporal_shift = T.tile(decreasing_time, (batch_size,1))
-        # Reshape
-        index_full = index.reshape((batch_size, 1)) - temporal_shift
-        # Slicing
-        pr = pr[index_full.ravel(),:]
-        # Reshape
-        return T.reshape(pr, (batch_size, seq_length, last_dim))
-
     def get_train_function(self, piano, orchestra, optimizer, name):
         # index to a [mini]batch : int32
         index = T.ivector()
