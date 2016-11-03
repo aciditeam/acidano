@@ -3,7 +3,7 @@
 
 
 # Sampling function for theano graphs
-def Gaussian_sample(theano_rng, mu, sig):
+def gaussian_sample(theano_rng, mu, sig):
     epsilon = theano_rng.normal(size=(mu.shape),
                                 avg=0., std=1.,
                                 dtype=mu.dtype)
