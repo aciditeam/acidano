@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
+import theano
 import theano.tensor as T
 import numpy as np
+import math
 
 
 def GaussianNLL(y, mu, sig):
@@ -23,6 +25,41 @@ def GaussianNLL(y, mu, sig):
 
     # Summed along time (i.e. mini-batch)
     return nll
+
+
+def gaussian_likelihood_diagonal_variance(t, mu, sig, dim):
+    """
+    Gaussian Likelihood along first dimension
+    Parameters
+    ----------
+    t   : TensorVariable
+    mu  : FullyConnected (Linear)
+    sig : FullyConnected (Softplus)
+    dim : First dimension of the target vector t
+    """
+    # Since the variance matrix is diagonal, normalization term is easier to compute,
+    # and calculus overflow can easily be prevente by first summing by 2*pi and taking square
+    sig_time_2pi = T.sqrt(sig * 2 * math.pi)
+    normalization_coeff = T.clip(T.prod(sig_time_2pi, axis=0), 1e-200, 1e200)
+    # Once again, fact that sig is diagonal allows for simplifications :
+    # term by term division instead of inverse matrix multiplication
+    exp_term = (T.exp(- 0.5 * (t-mu) * (t-mu) / sig).sum(axis=0))
+    pdf = exp_term / normalization_coeff
+    return pdf
+
+
+def gaussian_likelihood_scalar(t, mu, sig):
+    """
+    1D-Gaussian Likelihood
+    Parameters
+    ----------
+    t   : TensorVariable
+    mu  : FullyConnected (Linear)
+    sig : FullyConnected (Softplus)
+    """
+    normalization_coeff = T.sqrt(sig * 2 * math.pi)
+    exp_term = T.exp(- 0.5 * (t-mu) * (t-mu) / sig)
+    return exp_term / normalization_coeff
 
 
 def KLGaussianGaussian(mu1, sig1, mu2, sig2):
