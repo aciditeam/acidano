@@ -146,25 +146,3 @@ class sgd_nesterov(object):
             updates.append((memory, update))
             updates.append((param, param + update2))
         return updates
-
-
-class sgd(object):
-    # Only here for API conformity with other optimizers
-    def __init__(self, params):
-        pass
-
-    def updates(self, params, grads, learning_rate):
-        updates = []
-        for n, (param, grad) in enumerate(zip(params, grads)):
-            updates.append((param, param - learning_rate * grad))
-        return updates
-
-    """
-    Usage:
-    grads = T.grad(cost, self.params)
-    #opt = sgd_nesterov(self.params)
-    opt = rmsprop(self.params)
-    updates = opt.updates(self.params, grads,
-                          learning_rate / np.cast['float32'](self.batch_size),
-                          momentum)
-    """
