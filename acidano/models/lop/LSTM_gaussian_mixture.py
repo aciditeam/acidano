@@ -102,11 +102,11 @@ class LSTM_gaussian_mixture(Model_lop):
             #   - mean
             #   - std
             #   - weights in the mixture
-            self.W_mean = shared_normal((self.n_hs)[-1], self.K_gaussian * self.n_o, 0.01, name='W_mean')
+            self.W_mean = shared_normal((self.n_hs[-1], self.K_gaussian * self.n_o), 0.01, name='W_mean')
             self.b_mean = shared_zeros((self.K_gaussian * self.n_o), name='b_mean')
-            self.W_std = shared_normal((self.n_hs)[-1], self.K_gaussian * self.n_o, 1, name='W_std')
+            self.W_std = shared_normal((self.n_hs[-1], self.K_gaussian * self.n_o), 1, name='W_std')
             self.b_std = shared_zeros((self.K_gaussian * self.n_o), name='b_std')
-            self.W_weights = shared_normal((self.n_hs)[-1], self.K_gaussian, 0.01, name='W_weights')
+            self.W_weights = shared_normal((self.n_hs[-1], self.K_gaussian), 0.01, name='W_weights')
             self.b_weights = shared_zeros((self.K_gaussian), name='b_weights')
         else:
             # Layer weights
@@ -239,18 +239,18 @@ class LSTM_gaussian_mixture(Model_lop):
 
         # Activation probability
         # For mean, we use a sigmoid, as the intensity is between 0 and 1 : (B,T,K*O)
-        mean_prediction = T.nnet.sigmoid(T.dot(last_hidden, self.W_mean) + self.b_mean)
+        mean_mixture = T.nnet.sigmoid(T.dot(last_hidden, self.W_mean) + self.b_mean)
         # For std, we use an exponential (has to be positive) : (B,T,K*O)
         # + has the smooth property of being ~ 1 for activations ~0
-        std_prediction = T.exp(T.dot(last_hidden, self.W_std) + self.b_std)
+        std_mixture = T.exp(T.dot(last_hidden, self.W_std) + self.b_std)
         # Sum of the weights has to be equal to 1, so we use a softmax layer : (B*T*K)
         # Softmax (perso, cause theano doesn't have softmax for 3D tensor. Strange, I wonder why... ?)
         weights_activation = T.dot(last_hidden, self.W_weights) + self.b_weights
         e_x = T.exp(weights_activation - weights_activation.max(axis=2, keepdims=True))
-        weights_prediction = e_x / e_x.sum(axis=2, keepdims=True)
+        weights_mixture = e_x / e_x.sum(axis=2, keepdims=True)
 
         # Return parametric form of the gaussian mixture
-        return mean_prediction, std_prediction, weights_prediction, updates
+        return mean_mixture, std_mixture, weights_mixture, updates
 
     ###############################
     ###############################
@@ -271,7 +271,7 @@ class LSTM_gaussian_mixture(Model_lop):
         # Reshuffle : (B,T,K,O) -> (K,O,B,T)
         mean_prediction_reshuffle = mean_prediction_reshape.dimshuffle((2,3,0,1))
         std_prediction_reshuffle = std_prediction_reshape.dimshuffle((2,3,0,1))
-        # Note that we consider the variance matrix being a diagobnal matrix, which means that
+        # Note that we consider the variance matrix being a diagonal matrix, which means that
         # their is no correlations between terms ("no rotation for the axis of the gaussians")
         # Scan over K :     (K,O,B,T) -> (K,B,T)
         g_ll, updates_gaussian = theano.scan(fn=lambda mean, std, target: gaussian_likelihood_diagonal_variance(target, mean, std, self.n_o),
@@ -347,22 +347,27 @@ class LSTM_gaussian_mixture(Model_lop):
 
         self.v_gen.tag.test_value = np.random.rand(batch_generation_size, generation_length, self.n_v).astype(theano.config.floatX)
         v_loop = self.v_gen.dimshuffle((1,0,2))
-        mean_generation, std_generation, weights_generation, updates_generation = self.forward_pass(v_loop, batch_generation_size)
+        mean_mixture, std_generation, weights_generation, updates_generation = self.forward_pass(v_loop, batch_generation_size)
 
         # Create a mask for the 'privileged' gaussian
         max_weights = T.max(weights_generation, axis=2, keepdims=True)
         mask_weights = weights_generation >= max_weights
-        mask_weights_tile = T.tile(mask_weights, (1, 1, 1, self.n_o))
-        import pdb; pdb.set_trace()
+        # Allow broadcasting along n_o dimension
+        mask_weights_dimshuffle = mask_weights.dimshuffle((0,1,2,'x'))
 
-        # Apply mask
-        mean_generation_reshape = T.reshape(mean_generation, (batch_generation_size, generation_length, self.K_gaussian, self.n_o))
-        selected_mean = mean_generation_reshape * mask_weights_tile
+        # Mask mean
+        mean_mixture_reshape = T.reshape(mean_mixture, (batch_generation_size, generation_length, self.K_gaussian, self.n_o))
+        selected_mean = mean_mixture_reshape * mask_weights_dimshuffle
+        # Sum along gaussian dim
+        mean_generation = selected_mean.sum(axis=2)
+
+        # Mask std
         std_generation_reshape = T.reshape(std_generation, (batch_generation_size, generation_length, self.K_gaussian, self.n_o))
-        selected_std = std_generation_reshape * mask_weights_tile
+        selected_std = std_generation_reshape * mask_weights_dimshuffle
+        std_generation = selected_std.sum(axis=2)
 
         # Sample from gaussian distribution
-        sampled_gaussian = gaussian_sample(self.rng, selected_mean, selected_std),
+        sampled_gaussian = gaussian_sample(self.rng, mean_generation, std_generation)
         generated_sequence = T.clip(sampled_gaussian, 0, 1)
 
         return theano.function(inputs=[index],
