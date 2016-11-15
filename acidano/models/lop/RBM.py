@@ -130,7 +130,7 @@ class RBM(Model_lop):
         # bv and bh defines the dynamic biases computed thanks to u_tm1
         mean_h = T.nnet.sigmoid(T.dot(v, self.W) + T.dot(c, self.C) + self.bh)
         mean_h_corrupted = T.switch(dropout_mask, mean_h, 0)
-        h = self.rng.binomial(size=mean_h.shape, n=1, p=mean_h,
+        h = self.rng.binomial(size=mean_h_corrupted.shape, n=1, p=mean_h_corrupted,
                               dtype=theano.config.floatX)
         v_mean = T.nnet.sigmoid(T.dot(h, self.W.T) + self.bv)
         v = self.rng.binomial(size=v_mean.shape, n=1, p=v_mean,

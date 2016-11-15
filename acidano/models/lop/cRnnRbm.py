@@ -163,7 +163,7 @@ class cRnnRbm(Model_lop):
         mean_h = T.nnet.sigmoid(T.dot(v, self.W) + bh)
         # Dropout
         mean_h_corrupted = T.switch(dropout_mask, mean_h, 0)
-        h = self.rng.binomial(size=mean_h_corrupted.shape, n=1, p=mean_h,
+        h = self.rng.binomial(size=mean_h_corrupted.shape, n=1, p=mean_h_corrupted,
                               dtype=theano.config.floatX)
         mean_v = T.nnet.sigmoid(T.dot(h, self.W.T) + bv)
         v = self.rng.binomial(size=mean_v.shape, n=1, p=mean_v,

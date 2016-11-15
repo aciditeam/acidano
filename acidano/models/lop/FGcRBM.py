@@ -197,7 +197,7 @@ class FGcRBM(Model_lop):
         f_h = self.get_f_h(v, z)
         mean_h = T.nnet.sigmoid(f_h + bh)
         mean_h_corrupted = T.switch(dropout_mask, mean_h, 0)
-        h = self.rng.binomial(size=mean_h_corrupted.shape, n=1, p=mean_h,
+        h = self.rng.binomial(size=mean_h_corrupted.shape, n=1, p=mean_h_corrupted,
                               dtype=theano.config.floatX)
         f_v = self.get_f_v(h, z)
         mean_v = T.nnet.sigmoid(f_v + bv)
