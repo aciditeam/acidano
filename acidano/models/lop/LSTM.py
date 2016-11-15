@@ -26,8 +26,8 @@ from acidano.utils.measure import accuracy_measure, precision_measure, recall_me
 from acidano.utils.regularization import dropout_function
 
 
-class LSTM_ml(Model_lop):
-    """ LSTM 2 layers for LOP
+class LSTM(Model_lop):
+    """ LSTM multiple layers with regularization
     Predictive model,
         input = piano(t)
         output = orchestra(t)
