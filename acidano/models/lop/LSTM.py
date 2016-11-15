@@ -22,6 +22,8 @@ from acidano.utils.forward import propup_sigmoid, propup_tanh
 # Performance measures
 from acidano.utils.init import shared_normal, shared_zeros
 from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure
+# Regularization
+from acidano.utils.regularization import dropout_function
 
 
 class LSTM_ml(Model_lop):
@@ -51,6 +53,9 @@ class LSTM_ml(Model_lop):
         # Numpy and theano random generators
         self.rng_np = RandomState(25)
         self.rng = RandomStreams(seed=25)
+
+        # Regulariation paramters
+        self.dropout_probability = model_param['dropout_probability']
 
         self.L_vi = {}
         self.L_hi = {}
@@ -134,21 +139,17 @@ class LSTM_ml(Model_lop):
     @staticmethod
     def get_hp_space():
         space = (hp.qloguniform('temporal_order', log(20), log(20), 1),
-                 hp.choice('num_layer', [
-                     {
-                         'n_hidden': [hp.qloguniform('n_hidden_1_'+str(i), log(100), log(5000), 10) for i in range(1)]
-                     },
-                     {
-                         'n_hidden': [hp.qloguniform('n_hidden_2_'+str(i), log(100), log(5000), 10) for i in range(2)]
-                     },
-                     {
-                         'n_hidden': [hp.qloguniform('n_hidden_3_'+str(i), log(100), log(5000), 10) for i in range(3)]
-                     },
-                     {
-                         'n_hidden': [hp.qloguniform('n_hidden_4_'+str(i), log(100), log(5000), 10) for i in range(4)]
-                     },
+                 hp.choice('n_hidden', [
+                     [hp.qloguniform('n_hidden_1_'+str(i), log(100), log(5000), 10) for i in range(1)],
+                     [hp.qloguniform('n_hidden_2_'+str(i), log(100), log(5000), 10) for i in range(2)],
+                     [hp.qloguniform('n_hidden_3_'+str(i), log(100), log(5000), 10) for i in range(3)],
+                     [hp.qloguniform('n_hidden_4_'+str(i), log(100), log(5000), 10) for i in range(4)],
                  ]),
                  hp.quniform('batch_size', 100, 100, 1),
+                 hp.choice('dropout', [
+                     0.0,
+                     hp.normal('dropout_probability', 0.5, 0.1)
+                 ])
                  )
         return space
 
@@ -156,40 +157,54 @@ class LSTM_ml(Model_lop):
     def get_param_dico(params):
         # Unpack
         if params is None:
-            temporal_order, n_hidden, batch_size = [1,{'n_hidden': [2]},3]
+            temporal_order, n_hidden, batch_size, dropout = [1,[2,4],3, 0.5]
         else:
-            temporal_order, n_hidden, batch_size = params
+            temporal_order, n_hidden, batch_size, dropout = params
         # Cast the params
         model_param = {
             'temporal_order': int(temporal_order),
-            'n_hidden': [int(e) for e in n_hidden.values()[0]],
+            'n_hidden': [int(e) for e in n_hidden],
             'batch_size': int(batch_size),
+            'dropout_probability': dropout,
         }
         return model_param
 
     @staticmethod
     def name():
-        return "LSTM__multi_layer"
+        return "LSTM"
 
     ###############################
     ##  FORWARD PASS
     ###############################
-    def iteration(self, v_t, c_tm1, h_tm1,
+    def iteration(self, h_lm1_t, c_tm1, h_tm1,
                   L_vi, L_hi, b_i,
                   L_vf, L_hf, b_f,
                   L_vc, L_hc, b_c,
-                  L_vo, L_ho, b_o):
+                  L_vo, L_ho, b_o,
+                  n_lm1):
         # Sum along last axis
-        axis = v_t.ndim - 1
+        axis = h_lm1_t.ndim - 1
+        # Get input dimension (dieu que c'est moche)
+        size_mask = (self.batch_size, n_lm1)
+        # Apply dropout (see https://arxiv.org/pdf/1409.2329.pdf for details)
+        # using a mask of zero
+        if self.step_flag == 'train':
+            h_lm1_t_corrupted = dropout_function(h_lm1_t, p_dropout=self.dropout_probability, size=size_mask, rng=self.rng)
+        elif self.step_flag in ['validate', 'generate']:
+            # Just multiply weights by the dropout ratio
+            h_lm1_t_corrupted = h_lm1_t * (1-self.dropout_probability)
+        else:
+            raise(TypeError("In which step are we ? Training, validation or generation ?"))
+
         # Input gate
-        i = propup_sigmoid(T.concatenate([v_t, h_tm1], axis=axis), T.concatenate([L_vi, L_hi]), b_i)
+        i = propup_sigmoid(T.concatenate([h_lm1_t_corrupted, h_tm1], axis=axis), T.concatenate([L_vi, L_hi]), b_i)
         # Forget gate
-        f = propup_sigmoid(T.concatenate([v_t, h_tm1], axis=axis), T.concatenate([L_vf, L_hf]), b_f)
+        f = propup_sigmoid(T.concatenate([h_lm1_t_corrupted, h_tm1], axis=axis), T.concatenate([L_vf, L_hf]), b_f)
         # Cell update term
-        c_tilde = propup_tanh(T.concatenate([v_t, h_tm1], axis=axis), T.concatenate([L_vc, L_hc]), b_c)
+        c_tilde = propup_tanh(T.concatenate([h_lm1_t_corrupted, h_tm1], axis=axis), T.concatenate([L_vc, L_hc]), b_c)
         c_t = f * c_tm1 + i * c_tilde
         # Output gate
-        o = propup_sigmoid(T.concatenate([v_t, h_tm1], axis=axis), T.concatenate([L_vo, L_ho]), b_o)
+        o = propup_sigmoid(T.concatenate([h_lm1_t_corrupted, h_tm1], axis=axis), T.concatenate([L_vo, L_ho]), b_o)
         # h_t
         h_t = o * T.tanh(c_t)
         return c_t, h_t
@@ -197,6 +212,8 @@ class LSTM_ml(Model_lop):
     def forward_pass(self, v, batch_size):
         input_layer = [None]*(self.n_layer+1)
         input_layer[0] = v
+        n_lm1 = self.n_v
+
         for layer, n_h in enumerate(self.n_hs):
             c_0 = T.zeros((batch_size, n_h), dtype=theano.config.floatX)
             h_0 = T.zeros((batch_size, n_h), dtype=theano.config.floatX)
@@ -207,10 +224,13 @@ class LSTM_ml(Model_lop):
                                                   non_sequences=[self.L_vi[layer], self.L_hi[layer], self.b_i[layer],
                                                                  self.L_vf[layer], self.L_hf[layer], self.b_f[layer],
                                                                  self.L_vc[layer], self.L_hc[layer], self.b_c[layer],
-                                                                 self.L_vo[layer], self.L_ho[layer], self.b_o[layer]])
+                                                                 self.L_vo[layer], self.L_ho[layer], self.b_o[layer],
+                                                                 n_lm1])
 
             # Inputs for the next layer are the hidden units of the current layer
             input_layer[layer+1] = h_seq
+            # Update dimension
+            n_lm1 = n_h
 
         # Last hidden units
         last_hidden = input_layer[self.n_layer]
@@ -256,6 +276,9 @@ class LSTM_ml(Model_lop):
     ##       TRAIN FUNCTION
     ###############################
     def get_train_function(self, piano, orchestra, optimizer, name):
+        # Step flag
+        self.step_flag = 'train'
+
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -299,6 +322,9 @@ class LSTM_ml(Model_lop):
     ##       VALIDATION FUNCTION
     ##############################
     def get_validation_error(self, piano, orchestra, name):
+        # Set step flag
+        self.step_flag = 'validate'
+
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -318,6 +344,9 @@ class LSTM_ml(Model_lop):
     # Generation for the LSTM model is a bit special :
     # you can't seed the orchestration with the beginning of an existing score...
     def get_generate_function(self, piano, orchestra, generation_length, seed_size, batch_generation_size, name="generate_sequence"):
+        # Set step flag
+        self.step_flag = 'generate'
+
         # Index
         index = T.ivector()
 
