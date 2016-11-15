@@ -27,6 +27,8 @@ from acidano.utils.init import shared_normal, shared_zeros
 from acidano.utils.cost import gaussian_likelihood_diagonal_variance
 # Sampling
 from acidano.utils.sampling import gaussian_sample
+# Regularization
+from acidano.utils.regularization import dropout_function
 
 
 class LSTM_gaussian_mixture(Model_lop):
@@ -55,6 +57,12 @@ class LSTM_gaussian_mixture(Model_lop):
         # Number of Gaussian in the mixture
         self.K_gaussian = model_param['K_gaussian']
 
+        # Regulariation paramters
+        self.dropout_probability = model_param['dropout_probability']
+
+        # Ste flag
+        self.step_flag = None
+
         # Numpy and theano random generators
         self.rng_np = RandomState(25)
         self.rng = RandomStreams(seed=25)
@@ -76,27 +84,27 @@ class LSTM_gaussian_mixture(Model_lop):
             # Weights
             for layer in xrange(self.n_layer):
                 if layer == 0:
-                    n_htm1 = self.n_v
+                    n_h_lm1 = self.n_v
                 else:
-                    n_htm1 = self.n_hs[layer-1]
-                n_ht = self.n_hs[layer]
+                    n_h_lm1 = self.n_hs[layer-1]
+                n_h_l = self.n_hs[layer]
                 # input gate
-                self.L_vi[layer] = shared_normal((n_htm1, n_ht), 0.01, name='L_vi'+str(layer))
-                self.L_hi[layer] = shared_normal((n_ht, n_ht), 0.01, name='L_vi'+str(layer))
-                self.b_i[layer] = shared_zeros((n_ht), name='b_i'+str(layer))
+                self.L_vi[layer] = shared_normal((n_h_lm1, n_h_l), 0.01, name='L_vi'+str(layer))
+                self.L_hi[layer] = shared_normal((n_h_l, n_h_l), 0.01, name='L_vi'+str(layer))
+                self.b_i[layer] = shared_zeros((n_h_l), name='b_i'+str(layer))
                 # Internal cell
-                self.L_vc[layer] = shared_normal((n_htm1, n_ht), 0.01, name='L_vc'+str(layer))
-                self.L_hc[layer] = shared_normal((n_ht, n_ht), 0.01, name='L_hc'+str(layer))
-                self.b_c[layer] = shared_zeros((n_ht), name='b_c'+str(layer))
+                self.L_vc[layer] = shared_normal((n_h_lm1, n_h_l), 0.01, name='L_vc'+str(layer))
+                self.L_hc[layer] = shared_normal((n_h_l, n_h_l), 0.01, name='L_hc'+str(layer))
+                self.b_c[layer] = shared_zeros((n_h_l), name='b_c'+str(layer))
                 # Forget gate
-                self.L_vf[layer] = shared_normal((n_htm1, n_ht), 0.01, name='L_vf'+str(layer))
-                self.L_hf[layer] = shared_normal((n_ht, n_ht), 0.01, name='L_hf'+str(layer))
-                self.b_f[layer] = shared_zeros((n_ht), name='b_f'+str(layer))
+                self.L_vf[layer] = shared_normal((n_h_lm1, n_h_l), 0.01, name='L_vf'+str(layer))
+                self.L_hf[layer] = shared_normal((n_h_l, n_h_l), 0.01, name='L_hf'+str(layer))
+                self.b_f[layer] = shared_zeros((n_h_l), name='b_f'+str(layer))
                 # Output
                 # No L_co... as in Theano tuto
-                self.L_vo[layer] = shared_normal((n_htm1, n_ht), 0.01, name='L_vo'+str(layer))
-                self.L_ho[layer] = shared_normal((n_ht, n_ht), 0.01, name='L_ho'+str(layer))
-                self.b_o[layer] = shared_zeros((n_ht), name='b_o'+str(layer))
+                self.L_vo[layer] = shared_normal((n_h_lm1, n_h_l), 0.01, name='L_vo'+str(layer))
+                self.L_ho[layer] = shared_normal((n_h_l, n_h_l), 0.01, name='L_ho'+str(layer))
+                self.b_o[layer] = shared_zeros((n_h_l), name='b_o'+str(layer))
 
             # Last layer split between three nets predicting :
             #   - mean
@@ -151,22 +159,18 @@ class LSTM_gaussian_mixture(Model_lop):
     @staticmethod
     def get_hp_space():
         space = (hp.qloguniform('temporal_order', log(20), log(20), 1),
-                 hp.choice('num_layer', [
-                     {
-                         'n_hidden': [hp.qloguniform('n_hidden_1_'+str(i), log(100), log(5000), 10) for i in range(1)]
-                     },
-                     {
-                         'n_hidden': [hp.qloguniform('n_hidden_2_'+str(i), log(100), log(5000), 10) for i in range(2)]
-                     },
-                     {
-                         'n_hidden': [hp.qloguniform('n_hidden_3_'+str(i), log(100), log(5000), 10) for i in range(3)]
-                     },
-                     {
-                         'n_hidden': [hp.qloguniform('n_hidden_4_'+str(i), log(100), log(5000), 10) for i in range(4)]
-                     },
+                 hp.choice('n_hidden', [
+                     [hp.qloguniform('n_hidden_1_'+str(i), log(100), log(5000), 10) for i in range(1)],
+                     [hp.qloguniform('n_hidden_2_'+str(i), log(100), log(5000), 10) for i in range(2)],
+                     [hp.qloguniform('n_hidden_3_'+str(i), log(100), log(5000), 10) for i in range(3)],
+                     [hp.qloguniform('n_hidden_4_'+str(i), log(100), log(5000), 10) for i in range(4)],
                  ]),
                  hp.quniform('batch_size', 100, 100, 1),
                  hp.quniform('K_gaussian', 1, 10, 1),
+                 hp.choice('dropout', [
+                     0.0,
+                     hp.normal('dropout_probability', 0.5, 0.1)
+                 ])
                  )
         return space
 
@@ -174,15 +178,17 @@ class LSTM_gaussian_mixture(Model_lop):
     def get_param_dico(params):
         # Unpack
         if params is None:
-            temporal_order, n_hidden, batch_size, K_gaussian = [1,{'n_hidden': [2]},3,4]
+            temporal_order, n_hidden, batch_size, K_gaussian, dropout = [1,[23,51],3,4,0.1]
         else:
-            temporal_order, n_hidden, batch_size, K_gaussian = params
+            temporal_order, n_hidden, batch_size, K_gaussian, dropout = params
+
         # Cast the params
         model_param = {
             'temporal_order': int(temporal_order),
-            'n_hidden': [int(e) for e in n_hidden.values()[0]],
+            'n_hidden': [int(e) for e in n_hidden],
             'batch_size': int(batch_size),
             'K_gaussian': int(K_gaussian),
+            'dropout_probability': dropout,
         }
         return model_param
 
@@ -193,22 +199,34 @@ class LSTM_gaussian_mixture(Model_lop):
     ###############################
     ##  FORWARD PASS
     ###############################
-    def iteration(self, v_t, c_tm1, h_tm1,
+    def iteration(self, h_lm1_t, c_tm1, h_l_tm1,
                   L_vi, L_hi, b_i,
                   L_vf, L_hf, b_f,
                   L_vc, L_hc, b_c,
-                  L_vo, L_ho, b_o):
+                  L_vo, L_ho, b_o,
+                  n_lm1):
         # Sum along last axis
-        axis = v_t.ndim - 1
+        axis = h_lm1_t.ndim - 1
+        # Get input dimension (dieu que c'est moche)
+        size_mask = (self.batch_size, n_lm1)
+        # Apply dropout (see https://arxiv.org/pdf/1409.2329.pdf for details)
+        # using a mask of zero
+        if self.step_flag == 'train':
+            h_lm1_t_corrupted = dropout_function(h_lm1_t, p_dropout=self.dropout_probability, size=size_mask, rng=self.rng)
+        elif self.step_flag in ['validate', 'generate']:
+            # Just multiply weights by the dropout ratio
+            h_lm1_t_corrupted = h_lm1_t * (1-self.dropout_probability)
+        else:
+            raise(TypeError("In which step are we ? Training, validation or generation ?"))
         # Input gate
-        i = propup_sigmoid(T.concatenate([v_t, h_tm1], axis=axis), T.concatenate([L_vi, L_hi]), b_i)
+        i = propup_sigmoid(T.concatenate([h_lm1_t_corrupted, h_l_tm1], axis=axis), T.concatenate([L_vi, L_hi]), b_i)
         # Forget gate
-        f = propup_sigmoid(T.concatenate([v_t, h_tm1], axis=axis), T.concatenate([L_vf, L_hf]), b_f)
+        f = propup_sigmoid(T.concatenate([h_lm1_t_corrupted, h_l_tm1], axis=axis), T.concatenate([L_vf, L_hf]), b_f)
         # Cell update term
-        c_tilde = propup_tanh(T.concatenate([v_t, h_tm1], axis=axis), T.concatenate([L_vc, L_hc]), b_c)
+        c_tilde = propup_tanh(T.concatenate([h_lm1_t_corrupted, h_l_tm1], axis=axis), T.concatenate([L_vc, L_hc]), b_c)
         c_t = f * c_tm1 + i * c_tilde
         # Output gate
-        o = propup_sigmoid(T.concatenate([v_t, h_tm1], axis=axis), T.concatenate([L_vo, L_ho]), b_o)
+        o = propup_sigmoid(T.concatenate([h_lm1_t_corrupted, h_l_tm1], axis=axis), T.concatenate([L_vo, L_ho]), b_o)
         # h_t
         h_t = o * T.tanh(c_t)
         return c_t, h_t
@@ -216,6 +234,8 @@ class LSTM_gaussian_mixture(Model_lop):
     def forward_pass(self, v, batch_size):
         input_layer = [None]*(self.n_layer+1)
         input_layer[0] = v
+        n_lm1 = self.n_v
+
         for layer, n_h in enumerate(self.n_hs):
             c_0 = T.zeros((batch_size, n_h), dtype=theano.config.floatX)
             h_0 = T.zeros((batch_size, n_h), dtype=theano.config.floatX)
@@ -226,10 +246,12 @@ class LSTM_gaussian_mixture(Model_lop):
                                                   non_sequences=[self.L_vi[layer], self.L_hi[layer], self.b_i[layer],
                                                                  self.L_vf[layer], self.L_hf[layer], self.b_f[layer],
                                                                  self.L_vc[layer], self.L_hc[layer], self.b_c[layer],
-                                                                 self.L_vo[layer], self.L_ho[layer], self.b_o[layer]])
-
+                                                                 self.L_vo[layer], self.L_ho[layer], self.b_o[layer],
+                                                                 n_lm1])
             # Inputs for the next layer are the hidden units of the current layer
             input_layer[layer+1] = h_seq
+            # Update dimension
+            n_lm1 = n_h
 
         # Last hidden units
         last_hidden = input_layer[self.n_layer]
@@ -240,9 +262,13 @@ class LSTM_gaussian_mixture(Model_lop):
         # Activation probability
         # For mean, we use a sigmoid, as the intensity is between 0 and 1 : (B,T,K*O)
         mean_mixture = T.nnet.sigmoid(T.dot(last_hidden, self.W_mean) + self.b_mean)
+
         # For std, we use an exponential (has to be positive) : (B,T,K*O)
         # + has the smooth property of being ~ 1 for activations ~0
-        std_mixture = T.exp(T.dot(last_hidden, self.W_std) + self.b_std)
+        # std_mixture = T.exp(T.dot(last_hidden, self.W_std) + self.b_std)
+        # NO, in fact we use ReLu
+        std_mixture = T.nnet.relu(T.dot(last_hidden, self.W_std) + self.b_std)
+
         # Sum of the weights has to be equal to 1, so we use a softmax layer : (B*T*K)
         # Softmax (perso, cause theano doesn't have softmax for 3D tensor. Strange, I wonder why... ?)
         weights_activation = T.dot(last_hidden, self.W_weights) + self.b_weights
@@ -302,6 +328,9 @@ class LSTM_gaussian_mixture(Model_lop):
     ##       TRAIN FUNCTION
     ###############################
     def get_train_function(self, piano, orchestra, optimizer, name):
+        # Set the flag
+        self.step_flag = 'train'
+
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -321,6 +350,9 @@ class LSTM_gaussian_mixture(Model_lop):
     ##       VALIDATION FUNCTION
     ##############################
     def get_validation_error(self, piano, orchestra, name):
+        # Set the flag
+        self.step_flag = 'validate'
+
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -342,6 +374,9 @@ class LSTM_gaussian_mixture(Model_lop):
     # Generation for the LSTM model is a bit special :
     # you can't seed the orchestration with the beginning of an existing score...
     def get_generate_function(self, piano, orchestra, generation_length, seed_size, batch_generation_size, name="generate_sequence"):
+        # Set the flag
+        self.step_flag = 'generate'
+
         # Index
         index = T.ivector()
 
