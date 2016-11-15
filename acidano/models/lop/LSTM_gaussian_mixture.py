@@ -325,6 +325,9 @@ class LSTM_gaussian_mixture(Model_lop):
     ##       TRAIN FUNCTION
     ###############################
     def get_train_function(self, piano, orchestra, optimizer, name):
+
+        super(LSTM_gaussian_mixture, self).get_train_function(piano, orchestra, optimizer, name)
+
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -344,6 +347,9 @@ class LSTM_gaussian_mixture(Model_lop):
     ##       VALIDATION FUNCTION
     ##############################
     def get_validation_error(self, piano, orchestra, name):
+
+        super(LSTM_gaussian_mixture, self).get_validation_error(piano, orchestra, name)
+
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -365,6 +371,9 @@ class LSTM_gaussian_mixture(Model_lop):
     # Generation for the LSTM model is a bit special :
     # you can't seed the orchestration with the beginning of an existing score...
     def get_generate_function(self, piano, orchestra, generation_length, seed_size, batch_generation_size, name="generate_sequence"):
+
+        super(LSTM_gaussian_mixture, self).get_generate_function(piano, orchestra, generation_length, seed_size, batch_generation_size, name)
+
         # Index
         index = T.ivector()
 
