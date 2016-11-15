@@ -56,9 +56,6 @@ class cRBM(Model_lop):
         # Regularization
         self.dropout_probability = model_param['dropout_probability']
 
-        # Step flag
-        self.step_flag = None
-
         self.rng_np = RandomState(25)
 
         # Weights
@@ -231,9 +228,6 @@ class cRBM(Model_lop):
         return visible
 
     def get_train_function(self, piano, orchestra, optimizer, name):
-        # Set the step flag
-        self.step_flag = 'train'
-
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -268,9 +262,6 @@ class cRBM(Model_lop):
     ##       VALIDATION FUNCTION
     ##############################
     def get_validation_error(self, piano, orchestra, name):
-        # Set the step flag
-        self.step_flag = 'validate'
-
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -300,9 +291,6 @@ class cRBM(Model_lop):
     def get_generate_function(self, piano, orchestra,
                               generation_length, seed_size, batch_generation_size,
                               name="generate_sequence"):
-        # Set the step flag
-        self.step_flag = 'generate'
-
         # Seed_size is actually fixed by the temporal_order
         seed_size = self.temporal_order - 1
 

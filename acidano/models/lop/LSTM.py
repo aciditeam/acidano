@@ -276,9 +276,6 @@ class LSTM(Model_lop):
     ##       TRAIN FUNCTION
     ###############################
     def get_train_function(self, piano, orchestra, optimizer, name):
-        # Step flag
-        self.step_flag = 'train'
-
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -322,9 +319,6 @@ class LSTM(Model_lop):
     ##       VALIDATION FUNCTION
     ##############################
     def get_validation_error(self, piano, orchestra, name):
-        # Set step flag
-        self.step_flag = 'validate'
-
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -344,9 +338,6 @@ class LSTM(Model_lop):
     # Generation for the LSTM model is a bit special :
     # you can't seed the orchestration with the beginning of an existing score...
     def get_generate_function(self, piano, orchestra, generation_length, seed_size, batch_generation_size, name="generate_sequence"):
-        # Set step flag
-        self.step_flag = 'generate'
-
         # Index
         index = T.ivector()
 

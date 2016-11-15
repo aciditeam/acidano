@@ -22,6 +22,7 @@ class Model_lop(object):
 
     def __init__(self):
         self.params = []
+        self.step_flag = None
         return
 
     def weights_visualization(self, save_folder):
@@ -147,3 +148,18 @@ class Model_lop(object):
         orchestra_gen = np.zeros((batch_generation_size, generation_length, n_orchestra)).astype(theano.config.floatX)
         orchestra_gen[:, :seed_size, :] = orchestra_seed
         return piano_gen, orchestra_gen
+
+    ###############################
+    ##       Getter for theano function
+    ###############################
+    def get_train_function(self, piano, orchestra, optimizer, name):
+        self.step_flag = 'train'
+
+    def get_validation_error(self, piano, orchestra, name):
+        self.step_flag = 'validate'
+
+    def get_generate_function(self, piano, orchestra,
+                              generation_length, seed_size,
+                              batch_generation_size,
+                              name="generate_sequence"):
+        self.step_flag = 'generate'
