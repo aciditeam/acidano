@@ -41,6 +41,8 @@ class RBM(Model_lop):
         self.n_h = model_param['n_hidden']
         # Number of Gibbs sampling steps
         self.k = model_param['gibbs_steps']
+        # Regularization
+        self.dropout_probability = model_param['dropout_probability']
 
         self.rng_np = RandomState(25)
 
@@ -85,6 +87,10 @@ class RBM(Model_lop):
                  hp.qloguniform('n_hidden', log(100), log(5000), 10),
                  hp.quniform('batch_size', 100, 100, 1),
                  hp.qloguniform('gibbs_steps', log(1), log(50), 1),
+                 hp.choice('dropout', [
+                     0.0,
+                     hp.normal('dropout_probability', 0.5, 0.1)
+                 ])
                  )
         return space
 
@@ -92,15 +98,16 @@ class RBM(Model_lop):
     def get_param_dico(params):
         # Unpack
         if params is None:
-            temporal_order, n_hidden, batch_size, gibbs_steps = [1,2,3,4]
+            temporal_order, n_hidden, batch_size, gibbs_steps, dropout_probability = [1,2,3,4,0.1]
         else:
-            temporal_order, n_hidden, batch_size, gibbs_steps = params
+            temporal_order, n_hidden, batch_size, gibbs_steps, dropout_probability = params
         # Cast the params
         model_param = {
             'temporal_order': int(temporal_order),
             'n_hidden': int(n_hidden),
             'batch_size': int(batch_size),
-            'gibbs_steps': int(gibbs_steps)
+            'gibbs_steps': int(gibbs_steps),
+            'dropout_probability': dropout_probability
         }
         return model_param
 
@@ -119,9 +126,10 @@ class RBM(Model_lop):
         fe = A + B + C
         return fe
 
-    def gibbs_step(self, v, c):
+    def gibbs_step(self, v, c, dropout_mask):
         # bv and bh defines the dynamic biases computed thanks to u_tm1
         mean_h = T.nnet.sigmoid(T.dot(v, self.W) + T.dot(c, self.C) + self.bh)
+        mean_h_corrupted = T.switch(dropout_mask, mean_h, 0)
         h = self.rng.binomial(size=mean_h.shape, n=1, p=mean_h,
                               dtype=theano.config.floatX)
         v_mean = T.nnet.sigmoid(T.dot(h, self.W.T) + self.bv)
@@ -133,16 +141,21 @@ class RBM(Model_lop):
         return v, v_mean, c, c_mean
 
     def get_negative_particle(self, v, c):
+        # Dropout for RBM consists in applying the same mask to the hidden units at every gibbs sampling step
+        if self.step_flag == 'train':
+            dropout_mask = self.rng.binomial(size=(self.batch_size, self.n_h), n=1, p=1-self.dropout_probability, dtype=theano.config.floatX)
+        else:
+            dropout_mask = (1-self.dropout_probability)
         # Perform k-step gibbs sampling
         (v_chain, v_chain_mean, c_chain, c_chain_mean), updates_rbm = theano.scan(
-            fn=lambda v,c: self.gibbs_step(v,c),
+            fn=lambda v,c: self.gibbs_step(v,c,dropout_mask),
             outputs_info=[v, None, c, None],
             n_steps=self.k
         )
         # Get last element of the gibbs chain
         v_sample = v_chain[-1]
         c_sample = c_chain[-1]
-        _, v_mean, _, c_mean = self.gibbs_step(v_sample, c_sample)
+        _, v_mean, _, c_mean = self.gibbs_step(v_sample, c_sample, dropout_mask)
 
         return v_sample, v_mean, c_sample, c_mean, updates_rbm
 
@@ -198,6 +211,9 @@ class RBM(Model_lop):
         return visible
 
     def get_train_function(self, piano, orchestra, optimizer, name):
+
+        super(RBM, self).get_train_function()
+
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -232,6 +248,9 @@ class RBM(Model_lop):
     ##       VALIDATION FUNCTION
     ##############################
     def get_validation_error(self, piano, orchestra, name):
+
+        super(RBM, self).get_validation_error
+
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -260,6 +279,9 @@ class RBM(Model_lop):
     def get_generate_function(self, piano, orchestra,
                               generation_length, seed_size, batch_generation_size,
                               name="generate_sequence"):
+
+        super(RBM, self).get_generate_function()
+
         # Seed_size is actually fixed by the temporal_order
         seed_size = self.temporal_order - 1
 
