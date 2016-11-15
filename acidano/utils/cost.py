@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
-import theano
 import theano.tensor as T
 import numpy as np
 import math
@@ -37,13 +36,17 @@ def gaussian_likelihood_diagonal_variance(t, mu, sig, dim):
     sig : FullyConnected (Softplus)
     dim : First dimension of the target vector t
     """
+    # First clip sig
+    sig_clip = T.clip(sig, 1e-40, 1e40)
+
     # Since the variance matrix is diagonal, normalization term is easier to compute,
     # and calculus overflow can easily be prevente by first summing by 2*pi and taking square
-    sig_time_2pi = T.sqrt(sig * 2 * math.pi)
-    normalization_coeff = T.clip(T.prod(sig_time_2pi, axis=0), 1e-200, 1e200)
+    sig_time_2pi = T.sqrt(sig_clip * 2 * math.pi)
+    normalization_coeff = T.clip(T.prod(sig_time_2pi, axis=0), 1e-40, 1e40)
+
     # Once again, fact that sig is diagonal allows for simplifications :
     # term by term division instead of inverse matrix multiplication
-    exp_term = (T.exp(- 0.5 * (t-mu) * (t-mu) / sig).sum(axis=0))
+    exp_term = (T.exp(- 0.5 * (t-mu) * (t-mu) / sig_clip).sum(axis=0))
     pdf = exp_term / normalization_coeff
     return pdf
 
