@@ -49,8 +49,15 @@ class cRBM(Model_lop):
         self.n_v = self.n_orchestra
         self.n_p = (self.temporal_order-1) * self.n_orchestra + self.n_piano
         self.n_h = model_param['n_h']
+
         # Number of Gibbs sampling steps
         self.k = model_param['gibbs_steps']
+
+        # Regularization
+        self.dropout_probability = model_param['dropout_probability']
+
+        # Step flag
+        self.step_flag = None
 
         self.rng_np = RandomState(25)
 
@@ -75,6 +82,9 @@ class cRBM(Model_lop):
         self.p = T.matrix('p', dtype=theano.config.floatX)
         self.v_truth = T.matrix('v_truth', dtype=theano.config.floatX)
 
+        self.v.tag.test_value = np.random.rand(self.batch_size, self.n_v).astype(theano.config.floatX)
+        self.p.tag.test_value = np.random.rand(self.batch_size, self.n_p).astype(theano.config.floatX)
+
         # v_gen : random init
         # p_gen : piano[t] ^ orchestra[t-N:t-1]
         self.v_gen = T.matrix('v_gen', dtype=theano.config.floatX)
@@ -95,6 +105,10 @@ class cRBM(Model_lop):
                  hp.qloguniform('n_h', log(100), log(5000), 10),
                  hp.quniform('batch_size', 100, 100, 1),
                  hp.qloguniform('gibbs_steps', log(1), log(50), 1),
+                 hp.choice('dropout', [
+                     0.0,
+                     hp.normal('dropout_probability', 0.5, 0.1)
+                 ])
                  )
         return space
 
@@ -102,15 +116,16 @@ class cRBM(Model_lop):
     def get_param_dico(params):
         # Unpack
         if params is None:
-            temporal_order, n_h, batch_size, gibbs_steps = [1,2,3,5]
+            temporal_order, n_h, batch_size, gibbs_steps, dropout_probability = [1,2,3,5,0.6]
         else:
-            temporal_order, n_h, batch_size, gibbs_steps = params
+            temporal_order, n_h, batch_size, gibbs_steps, dropout_probability = params
         # Cast the params
         model_param = {
             'temporal_order': int(temporal_order),
             'n_h': int(n_h),
             'batch_size': int(batch_size),
-            'gibbs_steps': int(gibbs_steps)
+            'gibbs_steps': int(gibbs_steps),
+            'dropout_probability': dropout_probability
         }
         return model_param
 
@@ -126,26 +141,34 @@ class cRBM(Model_lop):
         fe = -(v * bv).sum(axis=1) - T.log(1 + T.exp(T.dot(v, self.W) + bh)).sum(axis=1)
         return fe
 
-    def gibbs_step(self, v, bv, bh):
+    def gibbs_step(self, v, bv, bh, dropout_mask):
         # bv and bh defines the dynamic biases computed thanks to u_tm1
         mean_h = T.nnet.sigmoid(T.dot(v, self.W) + bh)
-        h = self.rng.binomial(size=mean_h.shape, n=1, p=mean_h,
+        # Dropout
+        mean_h_corrupted = T.switch(dropout_mask, mean_h, 0)
+        h = self.rng.binomial(size=mean_h_corrupted.shape, n=1, p=mean_h,
                               dtype=theano.config.floatX)
+
         mean_v = T.nnet.sigmoid(T.dot(h, self.W.T) + bv)
         v = self.rng.binomial(size=mean_v.shape, n=1, p=mean_v,
                               dtype=theano.config.floatX)
         return v, mean_v
 
     def get_negative_particle(self, v, p):
+        # Dropout for RBM consists in applying the same mask to the hidden units at every the gibbs sampling step
+        if self.step_flag == 'train':
+            dropout_mask = self.rng.binomial(size=(self.batch_size, self.n_h), n=1, p=1-self.dropout_probability, dtype=theano.config.floatX)
+        else:
+            dropout_mask = (1-self.dropout_probability)
         # Get dynamic biases
         bv_dyn = T.dot(p, self.A) + self.bv
         bh_dyn = T.dot(p, self.B) + self.bh
         # Train the RBMs by blocks
         # Perform k-step gibbs sampling
         (v_chain, mean_chain), updates_rbm = theano.scan(
-            fn=lambda v,bv,bh: self.gibbs_step(v, bv,bh),
+            fn=self.gibbs_step,
             outputs_info=[v, None],
-            non_sequences=[bv_dyn, bh_dyn],
+            non_sequences=[bv_dyn, bh_dyn, dropout_mask],
             n_steps=self.k
         )
         # Get last element of the gibbs chain
@@ -208,6 +231,9 @@ class cRBM(Model_lop):
         return visible
 
     def get_train_function(self, piano, orchestra, optimizer, name):
+        # Set the step flag
+        self.step_flag = 'train'
+
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -242,6 +268,9 @@ class cRBM(Model_lop):
     ##       VALIDATION FUNCTION
     ##############################
     def get_validation_error(self, piano, orchestra, name):
+        # Set the step flag
+        self.step_flag = 'validate'
+
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -271,6 +300,9 @@ class cRBM(Model_lop):
     def get_generate_function(self, piano, orchestra,
                               generation_length, seed_size, batch_generation_size,
                               name="generate_sequence"):
+        # Set the step flag
+        self.step_flag = 'generate'
+
         # Seed_size is actually fixed by the temporal_order
         seed_size = self.temporal_order - 1
 
