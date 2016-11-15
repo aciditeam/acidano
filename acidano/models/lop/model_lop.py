@@ -152,14 +152,11 @@ class Model_lop(object):
     ###############################
     ##       Getter for theano function
     ###############################
-    def get_train_function(self, piano, orchestra, optimizer, name):
+    def get_train_function(self):
         self.step_flag = 'train'
 
-    def get_validation_error(self, piano, orchestra, name):
+    def get_validation_error(self):
         self.step_flag = 'validate'
 
-    def get_generate_function(self, piano, orchestra,
-                              generation_length, seed_size,
-                              batch_generation_size,
-                              name="generate_sequence"):
+    def get_generate_function(self):
         self.step_flag = 'generate'
