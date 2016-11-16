@@ -56,6 +56,24 @@ class adam_L2(object):
         self.epsilon = params['epsilon']
 
     @staticmethod
+    def get_hp_space():
+        space = (hp.loguniform('lr', log(0.1), log(0.001)),)
+        return space
+
+    @staticmethod
+    def get_param_dico(param):
+        if param is None:
+            learning_rate = 0.0
+        else:
+            learning_rate = param[0]  # Need the indexing to unpack the only value...
+
+        optim_param = {
+            'lr': learning_rate
+        }
+
+        return optim_param
+
+    @staticmethod
     def name():
         return "adam_L2"
 
