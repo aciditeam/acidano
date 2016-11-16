@@ -171,6 +171,7 @@ class LSTM_gaussian_mixture(Model_lop):
                 hp.normal('dropout_probability', 0.5, 0.1)
             ])
             )
+
         return space
 
     @staticmethod
