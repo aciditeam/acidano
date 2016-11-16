@@ -13,6 +13,9 @@ import numpy as np
 import theano.tensor as T
 import theano
 
+from hyperopt import hp
+from math import log
+
 
 class Model_lop(object):
     """
@@ -24,6 +27,14 @@ class Model_lop(object):
         self.params = []
         self.step_flag = None
         return
+
+    @staticmethod
+    def get_hp_space():
+        space = (hp.quniform('batch_size', 50, 500, 1),
+                 hp.qloguniform('temporal_order', log(3), log(20), 1)
+                 )
+
+        return space
 
     def weights_visualization(self, save_folder):
         # Find acidano path

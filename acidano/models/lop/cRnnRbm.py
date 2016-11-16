@@ -111,25 +111,25 @@ class cRnnRbm(Model_lop):
     ###############################
     @staticmethod
     def get_hp_space():
-        space = (hp.qloguniform('temporal_order', log(20), log(20), 1),
-                 hp.qloguniform('n_hidden', log(100), log(5000), 10),
-                 hp.qloguniform('n_hidden_recurrent', log(100), log(5000), 10),
-                 hp.quniform('batch_size', 100, 100, 1),
-                 hp.qloguniform('gibbs_steps', log(1), log(50), 1),
-                 hp.choice('dropout', [
-                     0.0,
-                     hp.normal('dropout_probability', 0.5, 0.1)
-                 ])
-                 )
+        super_space = Model_lop.get_hp_space()
+
+        space = super_space + (hp.qloguniform('n_hidden', log(100), log(5000), 10),
+                               hp.qloguniform('n_hidden_recurrent', log(100), log(5000), 10),
+                               hp.qloguniform('gibbs_steps', log(1), log(50), 1),
+                               hp.choice('dropout', [
+                                   0.0,
+                                   hp.normal('dropout_probability', 0.5, 0.1)
+                               ])
+                               )
         return space
 
     @staticmethod
     def get_param_dico(params):
         # Unpack
         if params is None:
-            temporal_order, n_hidden, n_hidden_recurrent, batch_size, gibbs_steps, dropout_probability = [1,2,3,4,5,0.1]
+            batch_size, temporal_order, n_hidden, n_hidden_recurrent, gibbs_steps, dropout_probability = [1,2,3,4,5,0.1]
         else:
-            temporal_order, n_hidden, n_hidden_recurrent, batch_size, gibbs_steps, dropout_probability = params
+            batch_size, temporal_order, n_hidden, n_hidden_recurrent, gibbs_steps, dropout_probability = params
 
         # Cast the params
         model_param = {

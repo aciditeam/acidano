@@ -138,28 +138,30 @@ class LSTM(Model_lop):
     ###############################
     @staticmethod
     def get_hp_space():
-        space = (hp.qloguniform('temporal_order', log(20), log(20), 1),
-                 hp.choice('n_hidden', [
-                     [hp.qloguniform('n_hidden_1_'+str(i), log(100), log(5000), 10) for i in range(1)],
-                     [hp.qloguniform('n_hidden_2_'+str(i), log(100), log(5000), 10) for i in range(2)],
-                     [hp.qloguniform('n_hidden_3_'+str(i), log(100), log(5000), 10) for i in range(3)],
-                     [hp.qloguniform('n_hidden_4_'+str(i), log(100), log(5000), 10) for i in range(4)],
-                 ]),
-                 hp.quniform('batch_size', 100, 100, 1),
-                 hp.choice('dropout', [
-                     0.0,
-                     hp.normal('dropout_probability', 0.5, 0.1)
-                 ])
-                 )
+
+        super_space = Model_lop.get_hp_space()
+
+        space = super_space +\
+            (hp.choice('n_hidden', [
+                [hp.qloguniform('n_hidden_1_'+str(i), log(100), log(5000), 10) for i in range(1)],
+                [hp.qloguniform('n_hidden_2_'+str(i), log(100), log(5000), 10) for i in range(2)],
+                [hp.qloguniform('n_hidden_3_'+str(i), log(100), log(5000), 10) for i in range(3)],
+                [hp.qloguniform('n_hidden_4_'+str(i), log(100), log(5000), 10) for i in range(4)],
+            ]),
+            hp.choice('dropout', [
+                0.0,
+                hp.normal('dropout_probability', 0.5, 0.1)
+            ])
+            )
         return space
 
     @staticmethod
     def get_param_dico(params):
         # Unpack
         if params is None:
-            temporal_order, n_hidden, batch_size, dropout = [1,[2,4],3, 0.5]
+            batch_size, temporal_order, n_hidden, dropout = [1,3,[2,4], 0.5]
         else:
-            temporal_order, n_hidden, batch_size, dropout = params
+            batch_size, temporal_order, n_hidden, dropout = params
         # Cast the params
         model_param = {
             'temporal_order': int(temporal_order),
