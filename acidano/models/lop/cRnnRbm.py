@@ -202,7 +202,7 @@ class cRnnRbm(Model_lop):
         # Train the RBMs by blocks
         # Dropout for RBM consists in applying the same mask to the hidden units at every the gibbs sampling step
         if self.step_flag == 'train':
-            dropout_mask = self.rng.binomial(size=(self.batch_size, self.n_h), n=1, p=1-self.dropout_probability, dtype=theano.config.floatX)
+            dropout_mask = self.rng.binomial(size=(self.batch_size, self.temporal_order, self.n_h), n=1, p=1-self.dropout_probability, dtype=theano.config.floatX)
         else:
             dropout_mask = (1-self.dropout_probability)
         # Perform k-step gibbs sampling
@@ -314,13 +314,19 @@ class cRnnRbm(Model_lop):
         # Orchestra initialization
         v_init_gen = self.rng.uniform(size=(self.batch_generation_size, self.n_v), low=0.0, high=1.0).astype(theano.config.floatX)
 
+        # Dropout for RBM consists in applying the same mask to the hidden units at every the gibbs sampling step
+        if self.step_flag == 'train':
+            dropout_mask = self.rng.binomial(size=(self.batch_size, self.temporal_order, self.n_h), n=1, p=1-self.dropout_probability, dtype=theano.config.floatX)
+        else:
+            dropout_mask = (1-self.dropout_probability)
+
         # Inpainting :
         # p_t is clamped
         # perform k-step gibbs sampling to get o_t
         (_, v_chain), updates_inference = theano.scan(
             # Be careful argument order has been modified
             # to fit the theano function framework
-            fn=lambda v,bv,bh: self.gibbs_step(v, bv, bh),
+            fn=lambda v,bv,bh: self.gibbs_step(v, bv, bh, dropout_mask),
             outputs_info=[None, v_init_gen],
             non_sequences=[bv_t, bh_t],
             n_steps=self.k
@@ -338,12 +344,13 @@ class cRnnRbm(Model_lop):
                               name="generate_sequence"):
 
         super(cRnnRbm, self).get_generate_function()
+
         # Seed_size is actually fixed by the temporal_order
         seed_size = self.temporal_order
         self.batch_generation_size = batch_generation_size
 
         ########################################################################
-        #########       Test Value
+        #########       Debug Value
         self.c_seed.tag.test_value = self.rng_np.rand(batch_generation_size, seed_size, self.n_c).astype(theano.config.floatX)
         self.v_seed.tag.test_value = self.rng_np.rand(batch_generation_size, seed_size, self.n_v).astype(theano.config.floatX)
         self.c_gen.tag.test_value = self.rng_np.rand(batch_generation_size, self.n_c).astype(theano.config.floatX)
