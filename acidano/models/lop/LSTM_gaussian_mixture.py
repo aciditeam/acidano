@@ -13,12 +13,10 @@ from math import log
 
 # Numpy
 import numpy as np
-from numpy.random import RandomState
 
 # Theano
 import theano
 import theano.tensor as T
-from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 # Propagation
 from acidano.utils.forward import propup_sigmoid, propup_tanh
@@ -43,10 +41,11 @@ class LSTM_gaussian_mixture(Model_lop):
                  model_param,
                  dimensions,
                  weights_initialization=None):
+
+        super(LSTM_gaussian_mixture, self).__init__(model_param, dimensions)
+
         # Datas are represented like this:
         #   - visible = concatenation of the data : (num_batch, piano ^ orchestra_dim * temporal_order)
-        self.batch_size = dimensions['batch_size']
-        self.temporal_order = dimensions['temporal_order']
         self.n_v = dimensions['piano_dim']
         self.n_o = dimensions['orchestra_dim']
 
@@ -56,13 +55,6 @@ class LSTM_gaussian_mixture(Model_lop):
 
         # Number of Gaussian in the mixture
         self.K_gaussian = model_param['K_gaussian']
-
-        # Regulariation paramters
-        self.dropout_probability = model_param['dropout_probability']
-
-        # Numpy and theano random generators
-        self.rng_np = RandomState(25)
-        self.rng = RandomStreams(seed=25)
 
         self.L_vi = {}
         self.L_hi = {}
@@ -166,10 +158,6 @@ class LSTM_gaussian_mixture(Model_lop):
                 [hp.qloguniform('n_hidden_4_'+str(i), log(100), log(5000), 10) for i in range(4)],
             ]),
             hp.quniform('K_gaussian', 1, 10, 1),
-            hp.choice('dropout', [
-                0.0,
-                hp.normal('dropout_probability', 0.5, 0.1)
-            ])
             )
 
         return space
@@ -178,17 +166,18 @@ class LSTM_gaussian_mixture(Model_lop):
     def get_param_dico(params):
         # Unpack
         if params is None:
-            batch_size, temporal_order, n_hidden, K_gaussian, dropout = [1,5,[23,51],4,0.1]
+            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_hidden, K_gaussian = [1,5,0.1,0.2,[23,51],4]
         else:
-            batch_size, temporal_order, n_hidden, K_gaussian, dropout = params
+            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_hidden, K_gaussian = params
 
         # Cast the params
         model_param = {
             'temporal_order': int(temporal_order),
             'n_hidden': [int(e) for e in n_hidden],
+            'dropout_probability': dropout_probability,
+            'weight_decay_coeff': weight_decay_coeff,
             'batch_size': int(batch_size),
-            'K_gaussian': int(K_gaussian),
-            'dropout_probability': dropout,
+            'K_gaussian': int(K_gaussian)
         }
         return model_param
 
@@ -319,10 +308,15 @@ class LSTM_gaussian_mixture(Model_lop):
 
     def cost_updates(self, optimizer):
         cost, updates_train = self.cost()
+        monitor = cost
+
+        # Weight decay
+        cost = cost + self.weight_decay_coeff + self.get_weight_decay()
+
         # Update weights
         grads = T.grad(cost, self.params)
         updates_train = optimizer.get_updates(self.params, grads, updates_train)
-        return cost, updates_train
+        return cost, monitor, updates_train
 
     ###############################
     ##       TRAIN FUNCTION
@@ -335,8 +329,7 @@ class LSTM_gaussian_mixture(Model_lop):
         index = T.ivector()
 
         # get the cost and the gradient corresponding to one step of CD-15
-        cost, updates = self.cost_updates(optimizer)
-        monitor = cost
+        cost, monitor, updates = self.cost_updates(optimizer)
 
         return theano.function(inputs=[index],
                                outputs=[cost, monitor],

@@ -19,12 +19,10 @@ from math import log
 
 # Numpy
 import numpy as np
-from numpy.random import RandomState
 
 # Theano
 import theano
 import theano.tensor as T
-from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 # Performance measures
 from acidano.utils.init import shared_normal, shared_zeros
@@ -38,11 +36,12 @@ class cRBM(Model_lop):
                  dimensions,
                  weights_initialization=None):
         """ inspired by G. Taylor"""
+
+        super(cRBM, self).__init__(model_param, dimensions)
+
         # Datas are represented like this:
         #   - visible : (num_batch, orchestra_dim)
         #   - past : (num_batch, orchestra_dim * (temporal_order-1) + piano_dim)
-        self.batch_size = dimensions['batch_size']
-        self.temporal_order = dimensions['temporal_order']
         self.n_piano = dimensions['piano_dim']
         self.n_orchestra = dimensions['orchestra_dim']
         #
@@ -52,11 +51,6 @@ class cRBM(Model_lop):
 
         # Number of Gibbs sampling steps
         self.k = model_param['gibbs_steps']
-
-        # Regularization
-        self.dropout_probability = model_param['dropout_probability']
-
-        self.rng_np = RandomState(25)
 
         # Weights
         if weights_initialization is None:
@@ -102,11 +96,7 @@ class cRBM(Model_lop):
         super_space = Model_lop.get_hp_space()
 
         space = super_space + (hp.qloguniform('n_h', log(100), log(5000), 10),
-                               hp.qloguniform('gibbs_steps', log(1), log(50), 1),
-                               hp.choice('dropout', [
-                                   0.0,
-                                   hp.normal('dropout_probability', 0.5, 0.1)
-                               ])
+                               hp.qloguniform('gibbs_steps', log(1), log(50), 1)
                                )
 
         return space
@@ -115,17 +105,18 @@ class cRBM(Model_lop):
     def get_param_dico(params):
         # Unpack
         if params is None:
-            batch_size, temporal_order, n_h, gibbs_steps, dropout_probability = [1,2,3,5,0.6]
+            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_h, gibbs_steps = [1,2,0.5,0.2,3,5]
         else:
-            batch_size, temporal_order, n_h, gibbs_steps, dropout_probability = params
+            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_h, gibbs_steps = params
 
         # Cast the params
         model_param = {
             'temporal_order': int(temporal_order),
             'n_h': int(n_h),
+            'dropout_probability': dropout_probability,
+            'weight_decay_coeff': weight_decay_coeff,
             'batch_size': int(batch_size),
-            'gibbs_steps': int(gibbs_steps),
-            'dropout_probability': dropout_probability
+            'gibbs_steps': int(gibbs_steps)
         }
         return model_param
 
@@ -190,6 +181,9 @@ class cRBM(Model_lop):
 
         # Cost = mean along batches of free energy difference
         cost = T.mean(fe_positive) - T.mean(fe_negative)
+
+        # Add weight decay
+        cost = cost + self.weight_decay_coeff * self.get_weight_decay()
 
         # Monitor
         monitor = T.nnet.binary_crossentropy(mean_v, self.v)

@@ -10,12 +10,10 @@ from math import log
 
 # Numpy
 import numpy as np
-from numpy.random import RandomState
 
 # Theano
 import theano
 import theano.tensor as T
-from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 # Performance measures
 from acidano.utils.init import shared_normal, shared_zeros
@@ -30,10 +28,11 @@ class RBM(Model_lop):
                  model_param,
                  dimensions,
                  weights_initialization=None):
+
+        super(RBM, self).__init__(model_param, dimensions)
+
         # Datas are represented like this:
         #   - visible = concatenation of the data : (num_batch, piano ^ orchestra_dim * temporal_order)
-        self.batch_size = dimensions['batch_size']
-        self.temporal_order = dimensions['temporal_order']
         self.n_v = dimensions['orchestra_dim']
         self.n_c = (self.temporal_order - 1) * dimensions['orchestra_dim'] + dimensions['piano_dim']
 
@@ -41,10 +40,6 @@ class RBM(Model_lop):
         self.n_h = model_param['n_hidden']
         # Number of Gibbs sampling steps
         self.k = model_param['gibbs_steps']
-        # Regularization
-        self.dropout_probability = model_param['dropout_probability']
-
-        self.rng_np = RandomState(25)
 
         # Weights
         if weights_initialization is None:
@@ -55,9 +50,9 @@ class RBM(Model_lop):
             self.bh = shared_zeros((self.n_h), name='bh')
         else:
             self.W = weights_initialization['W']
-            self.C = weights_initialization['C']
             self.bv = weights_initialization['bv']
             self.bc = weights_initialization['bc']
+            self.C = weights_initialization['C']
             self.bh = weights_initialization['bh']
 
         self.params = [self.W, self.C, self.bv, self.bc, self.bh]
@@ -71,8 +66,6 @@ class RBM(Model_lop):
 
         self.v_gen = T.matrix('v_gen', dtype=theano.config.floatX)
         self.c_gen = T.matrix('c_gen', dtype=theano.config.floatX)
-
-        self.rng = RandomStreams(seed=25)
 
         return
 
@@ -89,10 +82,6 @@ class RBM(Model_lop):
         space = super_space +\
             (hp.qloguniform('n_hidden', log(100), log(5000), 10),
              hp.qloguniform('gibbs_steps', log(1), log(50), 1),
-             hp.choice('dropout', [
-                 0.0,
-                 hp.normal('dropout_probability', 0.5, 0.1)
-             ])
              )
         return space
 
@@ -100,16 +89,17 @@ class RBM(Model_lop):
     def get_param_dico(params):
         # Unpack
         if params is None:
-            batch_size, temporal_order, n_hidden, gibbs_steps, dropout_probability = [1,2,3,4,0.1]
+            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_hidden, gibbs_steps = [1,2,0.1,0.2,3,4]
         else:
-            batch_size, temporal_order, n_hidden, gibbs_steps, dropout_probability = params
+            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_hidden, gibbs_steps = params
         # Cast the params
         model_param = {
             'temporal_order': int(temporal_order),
             'n_hidden': int(n_hidden),
+            'dropout_probability': dropout_probability,
+            'weight_decay_coeff': weight_decay_coeff,
             'batch_size': int(batch_size),
-            'gibbs_steps': int(gibbs_steps),
-            'dropout_probability': dropout_probability
+            'gibbs_steps': int(gibbs_steps)
         }
         return model_param
 
@@ -174,6 +164,9 @@ class RBM(Model_lop):
 
         # Cost = mean along batches of free energy difference
         cost = T.mean(fe_positive) - T.mean(fe_negative)
+
+        # Weight decay
+        cost = cost + self.weight_decay_coeff * self.get_weight_decay()
 
         # Monitor
         visible_loglike = T.nnet.binary_crossentropy(v_mean, self.v)

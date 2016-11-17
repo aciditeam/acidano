@@ -34,21 +34,16 @@ class RnnRbm(Model_lop):
                  dimensions,
                  weights_initialization=None):
 
+        super(RnnRbm, self).__init__(model_param, dimensions)
+
         self.n_orchestra = dimensions['orchestra_dim']
         self.n_piano = dimensions['piano_dim']
-        self.batch_size = dimensions['batch_size']
-        self.temporal_order = dimensions['temporal_order']
         # Number of hidden in the RBM
         self.n_hidden = model_param['n_hidden']
         # Number of hidden in the recurrent net
         self.n_hidden_recurrent = model_param['n_hidden_recurrent']
         # Number of Gibbs sampling steps
         self.k = model_param['gibbs_steps']
-        # Regularization
-        self.dropout_probability = model_param['dropout_probability']
-
-        self.rng_np = RandomState(25)
-        self.rng = RandomStreams(seed=25)
 
         # Weights
         if weights_initialization is None:
@@ -101,9 +96,6 @@ class RnnRbm(Model_lop):
         self.p_gen = T.matrix('p_gen', dtype=theano.config.floatX)
         self.u_gen = T.matrix('u_gen', dtype=theano.config.floatX)
 
-        # Random generator
-        self.rng = RandomStreams(seed=np.random.randint(1 << 30))
-
         return
 
     ###############################
@@ -119,10 +111,6 @@ class RnnRbm(Model_lop):
             (hp.qloguniform('n_hidden', log(100), log(5000), 10),
              hp.qloguniform('n_hidden_recurrent', log(100), log(5000), 10),
              hp.qloguniform('gibbs_steps', log(1), log(50), 1),
-             hp.choice('dropout', [
-                 0.0,
-                 hp.normal('dropout_probability', 0.5, 0.1)
-             ])
              )
         return space
 
@@ -130,18 +118,19 @@ class RnnRbm(Model_lop):
     def get_param_dico(params):
         # Unpack
         if params is None:
-            batch_size, temporal_order, n_hidden, n_hidden_recurrent, gibbs_steps, dropout_probability = [1,2,3,4,5,0.1]
+            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_hidden, n_hidden_recurrent, gibbs_steps = [1,2,0.1,0.2,3,4,5]
         else:
-            batch_size, temporal_order, n_hidden, n_hidden_recurrent, gibbs_steps, dropout_probability = params
+            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_hidden, n_hidden_recurrent, gibbs_steps = params
 
         # Cast the params
         model_param = {
             'temporal_order': int(temporal_order),
             'n_hidden': int(n_hidden),
+            'dropout_probability': dropout_probability,
+            'weight_decay_coeff': weight_decay_coeff,
             'n_hidden_recurrent': int(n_hidden_recurrent),
             'batch_size': int(batch_size),
-            'gibbs_steps': int(gibbs_steps),
-            'dropout_probability': dropout_probability
+            'gibbs_steps': int(gibbs_steps)
         }
 
         return model_param
@@ -254,6 +243,9 @@ class RnnRbm(Model_lop):
         # This quantity means nothing !!
         # But by it's a gradient is close to the gradient of
         # the non-approximate cost function
+
+        # Weight decay
+        cost = cost + self.weight_decay_coeff * self.get_weight_decay()
 
         # Update weights
         grads = T.grad(cost, self.params, consider_constant=[p_sample, o_sample])

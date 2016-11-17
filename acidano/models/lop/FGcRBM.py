@@ -10,12 +10,10 @@ from math import log
 
 # Numpy
 import numpy as np
-from numpy.random import RandomState
 
 # Theano
 import theano
 import theano.tensor as T
-from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 # Performance measures
 from acidano.utils.init import shared_normal, shared_zeros
@@ -28,11 +26,12 @@ class FGcRBM(Model_lop):
                  model_param,
                  dimensions,
                  weights_initialization=None):
+
+        super(FGcRBM, self).__init__(model_param, dimensions)
+
         # Datas are represented like this:
         #   - visible : (num_batch, orchestra_dim)
         #   - past : (num_batch, orchestra_dim * (temporal_order-1) + piano_dim)
-        self.batch_size = dimensions['batch_size']
-        self.temporal_order = dimensions['temporal_order']
         self.n_v = dimensions['orchestra_dim']
         self.n_p = (self.temporal_order-1) * dimensions['orchestra_dim']
         self.n_z = dimensions['piano_dim']
@@ -42,10 +41,6 @@ class FGcRBM(Model_lop):
         self.n_f = model_param['n_factor']
         # Number of Gibbs sampling steps
         self.k = model_param['gibbs_steps']
-        # Regularization
-        self.dropout_probability = model_param['dropout_probability']
-
-        self.rng_np = RandomState(25)
 
         # Weights
         if weights_initialization is None:
@@ -92,8 +87,6 @@ class FGcRBM(Model_lop):
         self.p_gen = T.matrix('p_gen', dtype=theano.config.floatX)
         self.z_gen = T.matrix('z_gen', dtype=theano.config.floatX)
 
-        self.rng = RandomStreams(seed=25)
-
         return
 
     ###############################
@@ -109,10 +102,6 @@ class FGcRBM(Model_lop):
         space = super_space + (hp.qloguniform('n_hidden', log(100), log(5000), 10),
                                hp.qloguniform('n_factor', log(100), log(5000), 10),
                                hp.qloguniform('gibbs_steps', log(1), log(50), 1),
-                               hp.choice('dropout', [
-                                   0.0,
-                                   hp.normal('dropout_probability', 0.5, 0.1)
-                               ])
                                )
         return space
 
@@ -120,18 +109,19 @@ class FGcRBM(Model_lop):
     def get_param_dico(params):
         # Unpack
         if params is None:
-            batch_size, temporal_order, n_hidden, n_factor, gibbs_steps, dropout_probability = [1,2,3,4,5,0.1]
+            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_hidden, n_factor, gibbs_steps = [1,2,0.1,0.2,3,4,5]
         else:
-            batch_size, temporal_order, n_hidden, n_factor, gibbs_steps, dropout_probability = params
+            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_hidden, n_factor, gibbs_steps = params
 
         # Cast the params
         model_param = {
             'temporal_order': int(temporal_order),
             'n_hidden': int(n_hidden),
+            'dropout_probability': dropout_probability,
+            'weight_decay_coeff': weight_decay_coeff,
             'n_factor': int(n_factor),
             'batch_size': int(batch_size),
-            'gibbs_steps': int(gibbs_steps),
-            'dropout_probability': dropout_probability
+            'gibbs_steps': int(gibbs_steps)
         }
         return model_param
 
@@ -244,6 +234,9 @@ class FGcRBM(Model_lop):
 
         # Cost = mean along batches of free energy difference
         cost = T.mean(fe_positive) - T.mean(fe_negative)
+
+        # Weight decay
+        cost = cost + self.weight_decay_coeff * self.get_weight_decay()
 
         # Monitor
         monitor = T.nnet.binary_crossentropy(mean_v, self.v)

@@ -10,12 +10,10 @@ from math import log
 
 # Numpy
 import numpy as np
-from numpy.random import RandomState
 
 # Theano
 import theano
 import theano.tensor as T
-from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 # Propagation
 from acidano.utils.forward import propup_sigmoid, propup_tanh
@@ -39,23 +37,17 @@ class LSTM(Model_lop):
                  model_param,
                  dimensions,
                  weights_initialization=None):
+
+        super(LSTM, self).__init__(model_param, dimensions)
+
         # Datas are represented like this:
         #   - visible = concatenation of the data : (num_batch, piano ^ orchestra_dim * temporal_order)
-        self.batch_size = dimensions['batch_size']
-        self.temporal_order = dimensions['temporal_order']
         self.n_v = dimensions['piano_dim']
         self.n_o = dimensions['orchestra_dim']
 
         # Number of hidden units
         self.n_hs = model_param['n_hidden']
         self.n_layer = len(self.n_hs)
-
-        # Numpy and theano random generators
-        self.rng_np = RandomState(25)
-        self.rng = RandomStreams(seed=25)
-
-        # Regulariation paramters
-        self.dropout_probability = model_param['dropout_probability']
 
         self.L_vi = {}
         self.L_hi = {}
@@ -148,10 +140,6 @@ class LSTM(Model_lop):
                 [hp.qloguniform('n_hidden_3_'+str(i), log(100), log(5000), 10) for i in range(3)],
                 [hp.qloguniform('n_hidden_4_'+str(i), log(100), log(5000), 10) for i in range(4)],
             ]),
-            hp.choice('dropout', [
-                0.0,
-                hp.normal('dropout_probability', 0.5, 0.1)
-            ])
             )
         return space
 
@@ -159,15 +147,16 @@ class LSTM(Model_lop):
     def get_param_dico(params):
         # Unpack
         if params is None:
-            batch_size, temporal_order, n_hidden, dropout = [1,3,[2,4], 0.5]
+            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_hidden = [1,3,[2,4], 0.5]
         else:
-            batch_size, temporal_order, n_hidden, dropout = params
+            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_hidden = params
         # Cast the params
         model_param = {
-            'temporal_order': int(temporal_order),
-            'n_hidden': [int(e) for e in n_hidden],
             'batch_size': int(batch_size),
-            'dropout_probability': dropout,
+            'temporal_order': int(temporal_order),
+            'dropout_probability': dropout_probability,
+            'weight_decay_coeff': weight_decay_coeff,
+            'n_hidden': [int(e) for e in n_hidden],
         }
         return model_param
 
@@ -264,6 +253,9 @@ class LSTM(Model_lop):
         cost = cost.sum(axis=(1,2))
         # Mean along batch dimension
         cost = T.mean(cost)
+
+        # Weight decay
+        cost = cost + self.weight_decay_coeff * self.get_weight_decay()
 
         # Monitor = cost normalized by sequence length
         monitor = cost / self.temporal_order

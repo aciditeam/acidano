@@ -9,6 +9,8 @@ import os
 import re
 
 import numpy as np
+from numpy.random import RandomState
+from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 import theano.tensor as T
 import theano
@@ -23,16 +25,40 @@ class Model_lop(object):
     Contains plot methods
     """
 
-    def __init__(self):
+    def __init__(self, model_param, dimensions):
+        # Training parameters
+        self.batch_size = dimensions['batch_size']
+        self.temporal_order = dimensions['temporal_order']
+
+        # Regularization paramters
+        self.dropout_probability = model_param['dropout_probability']
+        self.weight_decay_coeff = model_param['weight_decay_coeff']
+
+        # Numpy and theano random generators
+        self.rng_np = RandomState(25)
+        self.rng = RandomStreams(seed=25)
+
         self.params = []
         self.step_flag = None
         return
 
     @staticmethod
     def get_hp_space():
-        space = (hp.quniform('batch_size', 50, 500, 1),
-                 hp.qloguniform('temporal_order', log(3), log(20), 1)
-                 )
+        space_training = (hp.quniform('batch_size', 50, 500, 1),
+                          hp.qloguniform('temporal_order', log(3), log(20), 1)
+                          )
+
+        space_regularization = (hp.choice('dropout', [
+            0.0,
+            hp.normal('dropout_probability', 0.5, 0.1)
+        ]),
+            hp.choice('weight_decay_coeff', [
+                0.0,
+                hp.uniform('a', 1e-4, 1e-2)
+            ])
+        )
+
+        space = space_training + space_regularization
 
         return space
 
@@ -87,15 +113,12 @@ class Model_lop(object):
         # Plot weights
         for param_shared in self.params:
             plot_process(param_shared)
-            ## USELESS ???
-            # # Is it a stacked structure ?
-            # if isinstance(param_shared, dict):
-            #     import pdb; pdb.set_trace()
-            #     # Pop first layer and
-            #     for param_shared_layer in param_shared.itervalues():
-            #         plot_process(param_shared_layer)
-            # else:
-            #     plot_process(param_shared)
+
+    def get_weight_decay(self):
+        ret = 0
+        for param in self.params:
+            ret += T.pow(param, 2).sum()
+        return ret
 
     ###############################
     ##       Building matrices
