@@ -81,8 +81,6 @@ class cRBM(Model_lop):
         self.v_gen = T.matrix('v_gen', dtype=theano.config.floatX)
         self.p_gen = T.matrix('p_gen', dtype=theano.config.floatX)
 
-        self.rng = RandomStreams(seed=25)
-
         return
 
     ###############################
