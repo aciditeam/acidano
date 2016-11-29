@@ -1,8 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
+""" Theano CRBM implementation.
+
+For details, see:
+http://www.uoguelph.ca/~gwtaylor/publications/nips2006mhmublv
+Sample data:
+http://www.uoguelph.ca/~gwtaylor/publications/nips2006mhmublv/motion.mat
+
+@author Graham Taylor"""
+
 # Model lop
-from model_lop import Model_lop
+from acidano.models.lop.model_lop import Model_lop
 
 # Hyperopt
 from hyperopt import hp
@@ -20,72 +29,57 @@ from acidano.utils.init import shared_normal, shared_zeros
 from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure
 
 
-class FGcRBM(Model_lop):
-    """Factored Gated Conditional Restricted Boltzmann Machine (CRBM)"""
+class cRBM(Model_lop):
+    """Conditional Restricted Boltzmann Machine (CRBM)  """
     def __init__(self,
                  model_param,
                  dimensions,
                  weights_initialization=None):
+        """ inspired by G. Taylor"""
 
-        super(FGcRBM, self).__init__(model_param, dimensions)
+        super(cRBM, self).__init__(model_param, dimensions)
 
         # Datas are represented like this:
         #   - visible : (num_batch, orchestra_dim)
         #   - past : (num_batch, orchestra_dim * (temporal_order-1) + piano_dim)
-        self.n_v = dimensions['orchestra_dim']
-        self.n_p = (self.temporal_order-1) * dimensions['orchestra_dim']
-        self.n_z = dimensions['piano_dim']
+        self.n_piano = dimensions['piano_dim']
+        self.n_orchestra = dimensions['orchestra_dim']
+        #
+        self.n_v = self.n_orchestra
+        self.n_p = (self.temporal_order-1) * self.n_orchestra + self.n_piano
+        self.n_h = model_param['n_h']
 
-        # Number of hidden in the RBM
-        self.n_h = model_param['n_hidden']
-        self.n_f = model_param['n_factor']
         # Number of Gibbs sampling steps
         self.k = model_param['gibbs_steps']
 
         # Weights
         if weights_initialization is None:
-            self.Wvf = shared_normal((self.n_v, self.n_f), 0.01, self.rng_np, name='Wvf')
-            self.Whf = shared_normal((self.n_h, self.n_f), 0.01, self.rng_np, name='Whf')
-            self.Wzf = shared_normal((self.n_z, self.n_f), 0.01, self.rng_np, name='Wzf')
+            self.W = shared_normal((self.n_v, self.n_h), 0.01, self.rng_np, name='W')
             self.bv = shared_zeros((self.n_v), name='bv')
             self.bh = shared_zeros((self.n_h), name='bh')
-            self.Apf = shared_normal((self.n_p, self.n_f), 0.01, self.rng_np, name='Apf')
-            self.Avf = shared_normal((self.n_v, self.n_f), 0.01, self.rng_np, name='Avf')
-            self.Azf = shared_normal((self.n_z, self.n_f), 0.01, self.rng_np, name='Azf')
-            self.Bpf = shared_normal((self.n_p, self.n_f), 0.01, self.rng_np, name='Bpf')
-            self.Bhf = shared_normal((self.n_h, self.n_f), 0.01, self.rng_np, name='Bhf')
-            self.Bzf = shared_normal((self.n_z, self.n_f), 0.01, self.rng_np, name='Bzf')
+            self.A = shared_normal((self.n_p, self.n_v), 0.01, self.rng_np, name='A')
+            self.B = shared_normal((self.n_p, self.n_h), 0.01, self.rng_np, name='B')
         else:
-            self.Wvf = weights_initialization['Wvf']
-            self.Whf = weights_initialization['Whf']
-            self.Wzf = weights_initialization['Wzf']
+            self.W = weights_initialization['W']
             self.bv = weights_initialization['bv']
             self.bh = weights_initialization['bh']
-            self.Apf = weights_initialization['Apf']
-            self.Avf = weights_initialization['Avf']
-            self.Azf = weights_initialization['Azf']
-            self.Bpf = weights_initialization['Bpf']
-            self.Bhf = weights_initialization['Bhf']
-            self.Bzf = weights_initialization['Bzf']
+            self.A = weights_initialization['A']
+            self.B = weights_initialization['B']
 
-        self.params = [self.Wvf,self.Whf,self.Wzf,self.bv,self.bh,self.Apf,self.Avf,self.Azf,self.Bpf,self.Bhf,self.Bzf]
+        self.params = [self.W, self.A, self.B, self.bv, self.bh]
 
         # initialize input layer for standalone CRBM or layer0 of CDBN
-        # v = orchestra(t)
-        # p = past(t) = orchestra(t-N : t-1)
-        # z = piano(t)
         self.v = T.matrix('v', dtype=theano.config.floatX)
         self.p = T.matrix('p', dtype=theano.config.floatX)
-        self.z = T.matrix('z', dtype=theano.config.floatX)
         self.v_truth = T.matrix('v_truth', dtype=theano.config.floatX)
+
         self.v.tag.test_value = np.random.rand(self.batch_size, self.n_v).astype(theano.config.floatX)
         self.p.tag.test_value = np.random.rand(self.batch_size, self.n_p).astype(theano.config.floatX)
-        self.z.tag.test_value = np.random.rand(self.batch_size, self.n_z).astype(theano.config.floatX)
 
-        # Generation variables
+        # v_gen : random init
+        # p_gen : piano[t] ^ orchestra[t-N:t-1]
         self.v_gen = T.matrix('v_gen', dtype=theano.config.floatX)
         self.p_gen = T.matrix('p_gen', dtype=theano.config.floatX)
-        self.z_gen = T.matrix('z_gen', dtype=theano.config.floatX)
 
         return
 
@@ -99,27 +93,26 @@ class FGcRBM(Model_lop):
 
         super_space = Model_lop.get_hp_space()
 
-        space = super_space + (hp.qloguniform('n_hidden', log(100), log(5000), 10),
-                               hp.qloguniform('n_factor', log(100), log(5000), 10),
-                               hp.qloguniform('gibbs_steps', log(1), log(50), 1),
+        space = super_space + (hp.qloguniform('n_h', log(100), log(5000), 10),
+                               hp.qloguniform('gibbs_steps', log(1), log(50), 1)
                                )
+
         return space
 
     @staticmethod
     def get_param_dico(params):
         # Unpack
         if params is None:
-            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_hidden, n_factor, gibbs_steps = [1,2,0.1,0.2,3,4,5]
+            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_h, gibbs_steps = [1,2,0.5,0.2,3,5]
         else:
-            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_hidden, n_factor, gibbs_steps = params
+            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_h, gibbs_steps = params
 
         # Cast the params
         model_param = {
             'temporal_order': int(temporal_order),
-            'n_hidden': int(n_hidden),
+            'n_h': int(n_h),
             'dropout_probability': dropout_probability,
             'weight_decay_coeff': weight_decay_coeff,
-            'n_factor': int(n_factor),
             'batch_size': int(batch_size),
             'gibbs_steps': int(gibbs_steps)
         }
@@ -127,92 +120,44 @@ class FGcRBM(Model_lop):
 
     @staticmethod
     def name():
-        return "FGcRBM"
+        return "cRBM"
 
     ###############################
-    ## CONDITIONAL PROBABILITIES
+    ##       NEGATIVE PARTICLE
     ###############################
-    def get_f_h(self, v, z):
-        # Visible to factor : size (1,f)
-        v_f = T.dot(v, self.Wvf)
-        # Latent to factor : size (1,f)
-        z_f = T.dot(z, self.Wzf)
-        # vhl energy conditioned over hidden units
-        f_h = T.dot((v_f * z_f), self.Whf.T)
-        return f_h
-
-    def get_f_v(self, h, z):
-        # Hidden to factor : size (1,f)
-        h_f = T.dot(h, self.Whf)
-        # Latent to factor : size (1,f)
-        z_f = T.dot(z, self.Wzf)
-        # vhl energy conditioned over hidden units
-        f_v = T.dot((h_f * z_f), self.Wvf.T)
-        return f_v
-
-    ###############################
-    ## DYNAMIC BIASES
-    ###############################
-    def get_bv_dyn(self, p, z):
-        # Context to factor : size (1,f)
-        p_f = T.dot(p, self.Apf)
-        # Latent to factor : size (1,f)
-        z_f = T.dot(z, self.Azf)
-        #
-        dyn_bias = self.bv + T.dot((p_f * z_f), self.Avf.T)
-        return dyn_bias
-
-    def get_bh_dyn(self, p, z):
-        # Context to factor : size (1,f)
-        p_f = T.dot(p, self.Bpf)
-        # Latent to factor : size (1,f)
-        z_f = T.dot(z, self.Bzf)
-        #
-        dyn_bias = self.bh + T.dot((p_f * z_f), self.Bhf.T)
-        return dyn_bias
-
-    ###############################
-    ## NEGATIVE PARTICLE
-    ###############################
-    def free_energy(self, v, z, bv, bh):
-        # Visible contribution
-        A = -(v * bv).sum(axis=1)
-        f_h = self.get_f_h(v, z)
-        B = - T.log(1 + T.exp(f_h + bh)).sum(axis=1)
-
-        # Sum the two contributions
-        fe = A + B
+    def free_energy(self, v, bv, bh):
+        # sum along pitch axis
+        fe = -(v * bv).sum(axis=1) - T.log(1 + T.exp(T.dot(v, self.W) + bh)).sum(axis=1)
         return fe
 
-    def gibbs_step(self, v, z, bv, bh,dropout_mask):
+    def gibbs_step(self, v, bv, bh, dropout_mask):
         # bv and bh defines the dynamic biases computed thanks to u_tm1
-        f_h = self.get_f_h(v, z)
-        mean_h = T.nnet.sigmoid(f_h + bh)
+        mean_h = T.nnet.sigmoid(T.dot(v, self.W) + bh)
+        # Dropout
         mean_h_corrupted = T.switch(dropout_mask, mean_h, 0)
         h = self.rng.binomial(size=mean_h_corrupted.shape, n=1, p=mean_h_corrupted,
                               dtype=theano.config.floatX)
-        f_v = self.get_f_v(h, z)
-        mean_v = T.nnet.sigmoid(f_v + bv)
+
+        mean_v = T.nnet.sigmoid(T.dot(h, self.W.T) + bv)
         v = self.rng.binomial(size=mean_v.shape, n=1, p=mean_v,
                               dtype=theano.config.floatX)
         return v, mean_v
 
-    def get_negative_particle(self, v, p, z):
-        # Get dynamic biases
-        bv_dyn = self.get_bv_dyn(p, z)
-        bh_dyn = self.get_bh_dyn(p, z)
-
-        # Train the RBMs by blocks
-        # Dropout for RBM consists in applying the same mask to the hidden units at every gibbs sampling step
+    def get_negative_particle(self, v, p):
+        # Dropout for RBM consists in applying the same mask to the hidden units at every the gibbs sampling step
         if self.step_flag == 'train':
             dropout_mask = self.rng.binomial(size=(self.batch_size, self.n_h), n=1, p=1-self.dropout_probability, dtype=theano.config.floatX)
         else:
             dropout_mask = (1-self.dropout_probability)
+        # Get dynamic biases
+        bv_dyn = T.dot(p, self.A) + self.bv
+        bh_dyn = T.dot(p, self.B) + self.bh
+        # Train the RBMs by blocks
         # Perform k-step gibbs sampling
         (v_chain, mean_chain), updates_rbm = theano.scan(
             fn=self.gibbs_step,
             outputs_info=[v, None],
-            non_sequences=[z, bv_dyn, bh_dyn,dropout_mask],
+            non_sequences=[bv_dyn, bh_dyn, dropout_mask],
             n_steps=self.k
         )
         # Get last element of the gibbs chain
@@ -226,16 +171,16 @@ class FGcRBM(Model_lop):
     ###############################
     def cost_updates(self, optimizer):
         # Get the negative particle
-        v_sample, mean_v, bv_dyn, bh_dyn, updates_train = self.get_negative_particle(self.v, self.p, self.z)
+        v_sample, mean_v, bv_dyn, bh_dyn, updates_train = self.get_negative_particle(self.v, self.p)
 
         # Compute the free-energy for positive and negative particles
-        fe_positive = self.free_energy(self.v, self.z, bv_dyn, bh_dyn)
-        fe_negative = self.free_energy(v_sample, self.z, bv_dyn, bh_dyn)
+        fe_positive = self.free_energy(self.v, bv_dyn, bh_dyn)
+        fe_negative = self.free_energy(v_sample, bv_dyn, bh_dyn)
 
         # Cost = mean along batches of free energy difference
         cost = T.mean(fe_positive) - T.mean(fe_negative)
 
-        # Weight decay
+        # Add weight decay
         cost = cost + self.weight_decay_coeff * self.get_weight_decay()
 
         # Monitor
@@ -251,22 +196,27 @@ class FGcRBM(Model_lop):
     ###############################
     ##       TRAIN FUNCTION
     ###############################
-    def build_past(self, orchestra, index):
+    def get_index_full(self, index, batch_size, length_seq):
+        index.tag.test_value = np.linspace(50, 160, batch_size).astype(np.int32)
         # [T-1, T-2, ..., 0]
-        decreasing_time = theano.shared(np.arange(self.temporal_order-1,0,-1, dtype=np.int32))
+        decreasing_time = theano.shared(np.arange(length_seq-1,0,-1, dtype=np.int32))
         #
-        temporal_shift = T.tile(decreasing_time, (self.batch_size,1))
+        temporal_shift = T.tile(decreasing_time, (batch_size,1))
         # Reshape
-        index_full = index.reshape((self.batch_size, 1)) - temporal_shift
-        # Slicing
-        past = orchestra[index_full,:]\
-            .ravel()\
-            .reshape((self.batch_size, (self.temporal_order-1)*self.n_v))
-        return past
+        index_full = index.reshape((batch_size, 1)) - temporal_shift
+        return index_full
 
-    def build_latent(self, piano, index):
-        visible = piano[index,:]
-        return visible
+    def build_past(self, piano, orchestra, index, batch_size, length_seq):
+        index_full = self.get_index_full(index, batch_size, length_seq)
+        # Slicing
+        past_orchestra = orchestra[index_full,:]\
+            .ravel()\
+            .reshape((batch_size, (length_seq-1)*self.n_v))
+        present_piano = piano[index,:]
+        # Concatenate along pitch dimension
+        past = T.concatenate((present_piano, past_orchestra), axis=1)
+        # Reshape
+        return past
 
     def build_visible(self, orchestra, index):
         visible = orchestra[index,:]
@@ -274,7 +224,7 @@ class FGcRBM(Model_lop):
 
     def get_train_function(self, piano, orchestra, optimizer, name):
 
-        super(FGcRBM, self).get_train_function()
+        super(cRBM, self).get_train_function()
 
         # index to a [mini]batch : int32
         index = T.ivector()
@@ -286,8 +236,7 @@ class FGcRBM(Model_lop):
                                outputs=[cost, monitor],
                                updates=updates,
                                givens={self.v: self.build_visible(orchestra, index),
-                                       self.p: self.build_past(orchestra, index),
-                                       self.z: self.build_latent(piano, index)},
+                                       self.p: self.build_past(piano, orchestra, index, self.batch_size, self.temporal_order)},
                                name=name
                                )
 
@@ -297,7 +246,7 @@ class FGcRBM(Model_lop):
     def prediction_measure(self):
         self.v = self.rng.uniform((self.batch_size, self.n_v), 0, 1, dtype=theano.config.floatX)
         # Generate the last frame for the sequence v
-        v_sample, _, _, _, updates_valid = self.get_negative_particle(self.v, self.p, self.z)
+        v_sample, _, _, _, updates_valid = self.get_negative_particle(self.v, self.p)
         predicted_frame = v_sample
         # Get the ground truth
         true_frame = self.v_truth
@@ -312,55 +261,53 @@ class FGcRBM(Model_lop):
     ##############################
     def get_validation_error(self, piano, orchestra, name):
 
-        super(FGcRBM, self).get_validation_error()
+        super(cRBM, self).get_validation_error()
 
         # index to a [mini]batch : int32
         index = T.ivector()
 
         precision, recall, accuracy, updates_valid = self.prediction_measure()
 
+        # This time self.v is initialized randomly
         return theano.function(inputs=[index],
                                outputs=[precision, recall, accuracy],
                                updates=updates_valid,
-                               givens={self.p: self.build_past(orchestra, index),
-                                       self.z: self.build_latent(piano, index),
-                                       self.v_truth: self.build_visible(orchestra, index)},
+                               givens={self.v_truth: self.build_visible(orchestra, index),
+                                       self.p: self.build_past(piano, orchestra, index, self.batch_size, self.temporal_order)},
                                name=name
                                )
 
     ###############################
     ##       GENERATION
     ###############################
-    def build_p_generation(self, orchestra_gen, index, batch_size, length_seq):
+    def build_past_generation(self, piano_gen, orchestra_gen, index, batch_size, length_seq):
         past_orchestra = orchestra_gen[:,index-self.temporal_order+1:index,:]\
             .ravel()\
-            .reshape((batch_size, self.n_p))
-        return past_orchestra
+            .reshape((batch_size, (length_seq-1)*self.n_v))
 
-    def build_z_generation(self, piano_gen, index):
         present_piano = piano_gen[:,index,:]
-        return present_piano
+        p_gen = np.concatenate((present_piano, past_orchestra), axis=1)
+        return p_gen
 
     def get_generate_function(self, piano, orchestra,
                               generation_length, seed_size, batch_generation_size,
                               name="generate_sequence"):
 
-        super(FGcRBM, self).get_generate_function()
+        super(cRBM, self).get_generate_function()
 
         # Seed_size is actually fixed by the temporal_order
         seed_size = self.temporal_order - 1
 
-        # self.v_gen.tag.test_value = np.random.rand(batch_generation_size, self.n_v).astype(theano.config.floatX)
-        # self.p_gen.tag.test_value = np.random.rand(batch_generation_size, self.n_p).astype(theano.config.floatX)
-        # self.p_gen.tag.test_value = np.random.rand(batch_generation_size, self.n_p).astype(theano.config.floatX)
+        self.v_gen.tag.test_value = np.random.rand(batch_generation_size, self.n_v).astype(theano.config.floatX)
+        self.p_gen.tag.test_value = np.random.rand(batch_generation_size, self.n_p).astype(theano.config.floatX)
 
         # Graph for the negative particle
         v_sample, _, _, _, updates_next_sample = \
-            self.get_negative_particle(self.v_gen, self.p_gen, self.z_gen)
+            self.get_negative_particle(self.v_gen, self.p_gen)
 
         # Compile a function to get the next visible sample
         next_sample = theano.function(
-            inputs=[self.v_gen, self.p_gen, self.z_gen],
+            inputs=[self.v_gen, self.p_gen],
             outputs=[v_sample],
             updates=updates_next_sample,
             name="next_sample",
@@ -369,16 +316,13 @@ class FGcRBM(Model_lop):
         def closure(ind):
             # Initialize generation matrice
             piano_gen, orchestra_gen = self.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)
-
             for index in xrange(seed_size, generation_length, 1):
                 # Build past vector
-                p_gen = self.build_p_generation(orchestra_gen, index, batch_generation_size, self.temporal_order)
-                # Build z vector
-                z_gen = self.build_z_generation(piano_gen, index)
+                p_gen = self.build_past_generation(piano_gen, orchestra_gen, index, batch_generation_size, self.temporal_order)
                 # Build initialisation vector
                 v_gen = (np.random.uniform(0, 1, (batch_generation_size, self.n_v))).astype(theano.config.floatX)
                 # Get the next sample
-                v_t = (np.asarray(next_sample(v_gen, p_gen, z_gen))[0]).astype(theano.config.floatX)
+                v_t = (np.asarray(next_sample(v_gen, p_gen))[0]).astype(theano.config.floatX)
                 # Add this visible sample to the generated orchestra
                 orchestra_gen[:,index,:] = v_t
 
