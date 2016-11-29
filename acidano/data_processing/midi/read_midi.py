@@ -3,12 +3,11 @@
 
 from acidano.visualization.numpy_array.write_numpy_array_html import write_numpy_array_html
 from mido import MidiFile
+from unidecode import unidecode
 from write_midi import write_midi
 from acidano.data_processing.utils.pianoroll_processing import sum_along_instru_dim
 from acidano.visualization.numpy_array.dumped_numpy_to_csv import dump_to_csv
-from acidano.data_processing.utils.pianoroll_processing import get_pianoroll_time, clip_pr
-from acidano.data_processing.utils.time_warping import linear_warp_pr
-from subprocess import call
+from acidano.data_processing.utils.pianoroll_processing import get_pianoroll_time
 
 import numpy as np
 
@@ -168,7 +167,7 @@ class Read_midi(object):
             #     -> convert to int
             pr = pr.astype(np.int16)
             if np.sum(np.sum(pr)) > 0:
-                name = track.name
+                name = unidecode(track.name).decode('utf8')
                 if name == u'':
                     name = 'unnamed' + str(counter_unnamed_track)
                     counter_unnamed_track += 1
