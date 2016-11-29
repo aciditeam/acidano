@@ -42,7 +42,13 @@ def gaussian_likelihood_diagonal_variance(t, mu, sig, dim):
     # Since the variance matrix is diagonal, normalization term is easier to compute,
     # and calculus overflow can easily be prevente by first summing by 2*pi and taking square
     sig_time_2pi = T.sqrt(sig_clip * 2 * math.pi)
+
+    #######################
+    #######################
+    # This is the problem... product goes to 0
     normalization_coeff = T.clip(T.prod(sig_time_2pi, axis=0), 1e-40, 1e40)
+    #######################
+    #######################
 
     # Once again, fact that sig is diagonal allows for simplifications :
     # term by term division instead of inverse matrix multiplication

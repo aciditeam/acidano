@@ -17,9 +17,9 @@ def shared_normal(shape, scale=1, rng=None, name=None):
         name=name)
 
 
-def shared_zeros(shape, name=None):
+def shared_zeros(shape, bias=0, name=None):
     '''Initialize a vector shared variable with zero elements.'''
-    return theano.shared(np.zeros(shape, dtype=theano.config.floatX),
+    return theano.shared(np.zeros(shape, dtype=theano.config.floatX) + bias,
                          name=name)
 
 
