@@ -13,6 +13,10 @@
 # Test files
 **/test.py
 
+# HTML
+**/*.html
+
+# Needleman binaries
 acidano/data_processing/utils/Needleman/need
 acidano/data_processing/utils/Needleman/need.dSYM/
 acidano/data_processing/utils/Needleman/build/
