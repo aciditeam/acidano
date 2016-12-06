@@ -148,36 +148,17 @@ class LSTM_gaussian_mixture(Model_lop):
     def get_hp_space():
         super_space = Model_lop.get_hp_space()
 
-        space = super_space +\
-            (hp.choice('n_hidden', [
-                [hp.qloguniform('n_hidden_1_'+str(i), log(100), log(5000), 10) for i in range(1)],
-                [hp.qloguniform('n_hidden_2_'+str(i), log(100), log(5000), 10) for i in range(2)],
-                [hp.qloguniform('n_hidden_3_'+str(i), log(100), log(5000), 10) for i in range(3)],
-                [hp.qloguniform('n_hidden_4_'+str(i), log(100), log(5000), 10) for i in range(4)],
-            ]),
-            hp.quniform('K_gaussian', 1, 10, 1),
-            )
-
-        return space
-
-    @staticmethod
-    def get_param_dico(params):
-        # Unpack
-        if params is None:
-            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_hidden, K_gaussian = [1,5,0.1,0.2,[23,51],4]
-        else:
-            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_hidden, K_gaussian = params
-
-        # Cast the params
-        model_param = {
-            'temporal_order': int(temporal_order),
-            'n_hidden': [int(e) for e in n_hidden],
-            'dropout_probability': dropout_probability,
-            'weight_decay_coeff': weight_decay_coeff,
-            'batch_size': int(batch_size),
-            'K_gaussian': int(K_gaussian)
+        space = {'n_hidden': hp.choice('n_hidden', [
+            [hp.qloguniform('n_hidden_1_'+str(i), log(100), log(5000), 10) for i in range(1)],
+            [hp.qloguniform('n_hidden_2_'+str(i), log(100), log(5000), 10) for i in range(2)],
+            [hp.qloguniform('n_hidden_3_'+str(i), log(100), log(5000), 10) for i in range(3)],
+            [hp.qloguniform('n_hidden_4_'+str(i), log(100), log(5000), 10) for i in range(4)],
+        ]),
+            'K_gaussian': hp.quniform('K_gaussian', 1, 10, 1),
         }
-        return model_param
+
+        space.update(super_space)
+        return space
 
     @staticmethod
     def name():

@@ -105,33 +105,13 @@ class RnnRbm(Model_lop):
 
         super_space = Model_lop.get_hp_space()
 
-        space = super_space +\
-            (hp.qloguniform('n_hidden', log(100), log(5000), 10),
-             hp.qloguniform('n_hidden_recurrent', log(100), log(5000), 10),
-             hp.qloguniform('gibbs_steps', log(1), log(50), 1),
-             )
+        space = {hp.qloguniform('n_hidden', log(100), log(5000), 10),
+                 hp.qloguniform('n_hidden_recurrent', log(100), log(5000), 10),
+                 hp.qloguniform('gibbs_steps', log(1), log(50), 1),
+                 }
+
+        space.update(super_space)
         return space
-
-    @staticmethod
-    def get_param_dico(params):
-        # Unpack
-        if params is None:
-            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_hidden, n_hidden_recurrent, gibbs_steps = [1,2,0.1,0.2,3,4,5]
-        else:
-            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_hidden, n_hidden_recurrent, gibbs_steps = params
-
-        # Cast the params
-        model_param = {
-            'temporal_order': int(temporal_order),
-            'n_hidden': int(n_hidden),
-            'dropout_probability': dropout_probability,
-            'weight_decay_coeff': weight_decay_coeff,
-            'n_hidden_recurrent': int(n_hidden_recurrent),
-            'batch_size': int(batch_size),
-            'gibbs_steps': int(gibbs_steps)
-        }
-
-        return model_param
 
     @staticmethod
     def name():

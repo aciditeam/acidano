@@ -79,29 +79,12 @@ class RBM(Model_lop):
 
         super_space = Model_lop.get_hp_space()
 
-        space = super_space +\
-            (hp.qloguniform('n_hidden', log(100), log(5000), 10),
-             hp.qloguniform('gibbs_steps', log(1), log(50), 1),
-             )
-        return space
+        space = {hp.qloguniform('n_hidden', log(100), log(5000), 10),
+                 hp.qloguniform('gibbs_steps', log(1), log(50), 1),
+                 }
 
-    @staticmethod
-    def get_param_dico(params):
-        # Unpack
-        if params is None:
-            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_hidden, gibbs_steps = [1,2,0.1,0.2,3,4]
-        else:
-            batch_size, temporal_order, dropout_probability, weight_decay_coeff, n_hidden, gibbs_steps = params
-        # Cast the params
-        model_param = {
-            'temporal_order': int(temporal_order),
-            'n_hidden': int(n_hidden),
-            'dropout_probability': dropout_probability,
-            'weight_decay_coeff': weight_decay_coeff,
-            'batch_size': int(batch_size),
-            'gibbs_steps': int(gibbs_steps)
-        }
-        return model_param
+        space.update(super_space)
+        return space
 
     @staticmethod
     def name():
