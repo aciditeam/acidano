@@ -88,7 +88,7 @@ class RBM(Model_lop):
 
     @staticmethod
     def name():
-        return "RBM__inpainting"
+        return "RBM_inpainting"
 
     ###############################
     ##       NEGATIVE PARTICLE
