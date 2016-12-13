@@ -16,6 +16,7 @@ from acidano.models.lop.model_lop import Model_lop
 
 # Hyperopt
 from hyperopt import hp
+from acidano.utils import hopt_wrapper
 from math import log
 
 # Numpy
@@ -155,12 +156,12 @@ class LSTM_gaussian_mixture_2(Model_lop):
         super_space = Model_lop.get_hp_space()
 
         space = {'n_hidden': hp.choice('n_hidden', [
-            [hp.qloguniform('n_hidden_1_'+str(i), log(100), log(5000), 10) for i in range(1)],
-            [hp.qloguniform('n_hidden_2_'+str(i), log(100), log(5000), 10) for i in range(2)],
-            [hp.qloguniform('n_hidden_3_'+str(i), log(100), log(5000), 10) for i in range(3)],
-            [hp.qloguniform('n_hidden_4_'+str(i), log(100), log(5000), 10) for i in range(4)],
+            [hopt_wrapper.qloguniform_int('n_hidden_1_'+str(i), log(100), log(5000), 10) for i in range(1)],
+            [hopt_wrapper.qloguniform_int('n_hidden_2_'+str(i), log(100), log(5000), 10) for i in range(2)],
+            [hopt_wrapper.qloguniform_int('n_hidden_3_'+str(i), log(100), log(5000), 10) for i in range(3)],
+            [hopt_wrapper.qloguniform_int('n_hidden_4_'+str(i), log(100), log(5000), 10) for i in range(4)],
         ]),
-            'K_gaussian': hp.quniform('K_gaussian', 1, 10, 1),
+            'K_gaussian': hopt_wrapper.quniform_int('K_gaussian', 1, 10, 1),
         }
 
         space.update(super_space)

@@ -3,9 +3,10 @@
 
 from acidano.visualization.numpy_array.write_numpy_array_html import write_numpy_array_html
 from acidano.visualization.numpy_array.dumped_numpy_to_csv import dump_to_csv
-
 import os
 import re
+
+from acidano.utils import hopt_wrapper
 
 import numpy as np
 from numpy.random import RandomState
@@ -43,15 +44,15 @@ class Model_lop(object):
 
     @staticmethod
     def get_hp_space():
-        space_training = {'batch_size': hp.quniform('batch_size', 50, 500, 1),
-                          'temporal_order': hp.qloguniform('temporal_order', log(3), log(20), 1)
+        space_training = {'batch_size': hopt_wrapper.quniform_int('batch_size', 50, 500, 1),
+                          'temporal_order': hopt_wrapper.qloguniform_int('temporal_order', log(3), log(20), 1)
                           }
 
-        space_regularization = {'dropout': hp.choice('dropout', [
+        space_regularization = {'dropout_probability': hp.choice('dropout', [
             0.0,
             hp.normal('dropout_probability', 0.5, 0.1)
         ]),
-            'weight_decay': hp.choice('weight_decay_coeff', [
+            'weight_decay_coeff': hp.choice('weight_decay_coeff', [
                 0.0,
                 hp.uniform('a', 1e-4, 1e-2)
             ])

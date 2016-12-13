@@ -15,6 +15,7 @@ from acidano.models.lop.model_lop import Model_lop
 
 # Hyperopt
 from hyperopt import hp
+from acidano.utils import hopt_wrapper
 from math import log
 
 # Numpy
@@ -93,8 +94,8 @@ class cRBM(Model_lop):
 
         super_space = Model_lop.get_hp_space()
 
-        space = {'n_h': hp.qloguniform('n_h', log(100), log(5000), 10),
-                 'gibbs_step': hp.qloguniform('gibbs_steps', log(1), log(50), 1)
+        space = {'n_h': hopt_wrapper.qloguniform_int('n_h', log(100), log(5000), 10),
+                 'gibbs_step': hopt_wrapper.qloguniform_int('gibbs_steps', log(1), log(50), 1)
                  }
 
         space.update(super_space)

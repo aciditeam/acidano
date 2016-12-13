@@ -6,6 +6,7 @@ from acidano.models.lop.model_lop import Model_lop
 
 # Hyperopt
 from hyperopt import hp
+from acidano.utils import hopt_wrapper
 from math import log
 
 # Numpy
@@ -105,9 +106,9 @@ class RnnRbm(Model_lop):
 
         super_space = Model_lop.get_hp_space()
 
-        space = {hp.qloguniform('n_hidden', log(100), log(5000), 10),
-                 hp.qloguniform('n_hidden_recurrent', log(100), log(5000), 10),
-                 hp.qloguniform('gibbs_steps', log(1), log(50), 1),
+        space = {hopt_wrapper.qloguniform_int('n_hidden', log(100), log(5000), 10),
+                 hopt_wrapper.qloguniform_int('n_hidden_recurrent', log(100), log(5000), 10),
+                 hopt_wrapper.qloguniform_int('gibbs_steps', log(1), log(50), 1),
                  }
 
         space.update(super_space)

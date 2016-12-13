@@ -6,6 +6,7 @@ from acidano.models.lop.model_lop import Model_lop
 
 # Hyperopt
 from hyperopt import hp
+from acidano.utils import hopt_wrapper
 from math import log
 
 # Numpy
@@ -99,9 +100,9 @@ class FGcRBM(Model_lop):
 
         super_space = Model_lop.get_hp_space()
 
-        space = {'n_hidden': hp.qloguniform('n_hidden', log(100), log(5000), 10),
-                 'n_factor': hp.qloguniform('n_factor', log(100), log(5000), 10),
-                 'gibbs_steps': hp.qloguniform('gibbs_steps', log(1), log(50), 1)
+        space = {'n_hidden': hopt_wrapper.qloguniform_int('n_hidden', log(100), log(5000), 10),
+                 'n_factor': hopt_wrapper.qloguniform_int('n_factor', log(100), log(5000), 10),
+                 'gibbs_steps': hopt_wrapper.qloguniform_int('gibbs_steps', log(1), log(50), 1)
                  }
 
         space.update(super_space)
