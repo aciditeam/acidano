@@ -2,12 +2,11 @@
 # -*- coding: utf8 -*-
 
 import hyperopt
-
-print(hyperopt.version.version)
 import hyperopt.pyll_utils as pyll_utils
 from hyperopt.pyll import scope
 
 if 'validate_label' in dir(pyll_utils):
+    from pyll_utils import validate_label
     @validate_label
     def qloguniform_int(label, *args, **kwargs):
         return scope.int(
@@ -29,5 +28,3 @@ else:
         return scope.int(
             scope.hyperopt_param(label,
                                  scope.quniform(*args, **kwargs)))
-
-
