@@ -189,7 +189,7 @@ def write_numpy_array_html(filename, dataname, colour_palette='blue_gradient', d
 
         graph.append("g").attr({
             "class": "axis", // Give class so we can style it
-            "transform": "translate(" + [0, height - margin.bottom] + ")", // Translate just moves it down into position (or will be on top)
+            "transform": "translate(" + [0, height - margin.bottom+H_dy(1)/2] + ")", // Translate just moves it down into position (or will be on top)
         }).call(xAxis); // Call the xAxis function on the group
 
         graph.append("text")
@@ -198,7 +198,7 @@ def write_numpy_array_html(filename, dataname, colour_palette='blue_gradient', d
             .attr("y", height-margin.bottom+50)
             .text("Time");
 
-        draw_arrow(graph, margin.left, height-margin.bottom, width-margin.right, height-margin.bottom, "right", "axisLine")
+        //draw_arrow(graph, margin.left, height-margin.bottom+H_dy(1)/2 , width-margin.right, height-margin.bottom+H_dy(1)/2, "right", "axisLine")
 
         // Adds Y-Axis as a 'g' element
         var yAxis = d3.svg.axis()
@@ -208,7 +208,7 @@ def write_numpy_array_html(filename, dataname, colour_palette='blue_gradient', d
 
         graph.append("g").attr({
             "class": "axis",
-            "transform": "translate(" + [margin.left, 0] + ")",
+            "transform": "translate(" + [margin.left-W_dx(1), 0] + ")",
         }).call(yAxis); // Call the yAxis function on the group
 
         graph.append("text")
@@ -217,23 +217,30 @@ def write_numpy_array_html(filename, dataname, colour_palette='blue_gradient', d
             .attr("y", margin.top-30)
             .text("Pitch");
 
-        draw_arrow(graph, margin.left, height-margin.bottom, margin.left, margin.top, "top", "axisLine")
+        //draw_arrow(graph, margin.left-W_dx(2), height-margin.bottom+H_dy(1)/2, margin.left-W_dx(2), margin.top-H_dy(1)/2, "top", "axisLine")
 
         // Add a title
         graph.append("text")
             .attr("class", "title")
             .attr("x", ((width + margin.left) / 2))
-            .attr("y", margin.top / 2)
+            .attr("y", margin.top / 4)
             .attr("text-anchor", "middle")
             .text(filename);
+
+        graph.append("text")
+            .attr("class", "title")
+            .attr("x", ((width + margin.left) / 2))
+            .attr("y", margin.top/2)
+            .attr("text-anchor", "middle")
+            .text("Min Z : " + minZ + " Max Z : " + maxZ);
 
         // Draw the points (x,y,z)
         var pointAttr = {
             x: function(d) {
-                return W(d.x);
+                return (W(d.x) - W_dx(1)/2);
             },
             y: function(d) {
-                return H(d.y);
+                return (H(d.y) - H_dy(1)/2);
             },
             width: W_dx(1),
             height: H_dy(1),

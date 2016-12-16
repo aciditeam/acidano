@@ -19,4 +19,4 @@ def visualize_mat(pr, path, file_name_no_extension):
     temp_csv = path + '/' + file_name_no_extension + '.csv'
     np.savetxt(temp_csv, pr, delimiter=',')
     dump_to_csv(temp_csv, temp_csv)
-    write_numpy_array_html(path + '/' + file_name_no_extension + ".html", file_name_no_extension)
+    write_numpy_array_html(path + '/' + file_name_no_extension + ".html", file_name_no_extension, 'rainbow')
