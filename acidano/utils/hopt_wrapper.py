@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
-import hyperopt
 import hyperopt.pyll_utils as pyll_utils
 from hyperopt.pyll import scope
 
 if 'validate_label' in dir(pyll_utils):
-    from pyll_utils import validate_label
+    from hyperopt.pyll_utils import validate_label
+
     @validate_label
     def qloguniform_int(label, *args, **kwargs):
         return scope.int(
