@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
-from acidano.visualization.numpy_array.write_numpy_array_html import write_numpy_array_html
-from acidano.visualization.numpy_array.dumped_numpy_to_csv import dump_to_csv
-import os
-import re
+# Plot lib
+import matplotlib.pyplot as plt
+from acidano.visualization.numpy_array.visualize_numpy import visualize_mat
 
 from acidano.utils import hopt_wrapper
 
@@ -62,55 +61,40 @@ class Model_lop(object):
         return space_training
 
     def save_weights(self, save_folder):
-        # Find acidano path
-        # user_paths = os.environ['PYTHONPATH'].split(os.pathsep)
-        # NOT_FOUND = True
-        # for user_path in user_paths:
-        #     if re.search('acidano', user_path):
-        #         d3js_source_path = user_path + 'acidano/visualization/d3.v3.min.js'
-        #         NOT_FOUND = False
-        #         break
-        # if NOT_FOUND:
-        #     print("No d3.js -> No visualization")
-        #     return
-
         def plot_process(param_shared):
             param = param_shared.get_value()
 
             temp_csv = save_folder + '/' + param_shared.name + '.csv'
             np.savetxt(temp_csv, param, delimiter=',')
 
-            # # Get mean, std and write title
-            # mean = np.mean(param)
-            # std = np.mean(param)
-            # title = param_shared.name + " mean = " + str(mean) + " std = " + str(std)
-            #
-            # # Plot histogram
-            # fig = plt.figure()
-            # fig.suptitle(title, fontsize=14, fontweight='bold')
-            #
-            # ax = fig.add_subplot(111)
-            # fig.subplots_adjust(top=0.85)
-            #
-            # ax.set_xlabel('nb_occurence')
-            # ax.set_ylabel('value')
-            #
-            # param_ravel = param.ravel()
-            # # Check for NaN values
-            # if np.sum(np.isnan(param_ravel)):
-            #     # Give an arbitrary value
-            #     param_ravel = np.zeros(param_ravel.shape) - 1
-            #     fig.suptitle(title + " NAN !!", fontsize=14, fontweight='bold')
-            #
-            # n, bins, patches = plt.hist(param_ravel, bins=50, normed=1, histtype='bar', rwidth=0.8)
-            # plt.savefig(save_folder + '/' + param_shared.name + '.pdf')
-            # plt.close(fig)
-            #
-            # # Plot matrices
-            # temp_csv = save_folder + '/' + param_shared.name + '.csv'
-            # np.savetxt(temp_csv, param, delimiter=',')
-            # dump_to_csv(temp_csv, temp_csv)
-            # write_numpy_array_html(save_folder + '/' + param_shared.name + '.html', param_shared.name, d3js_source_path)
+            # Get mean, std and write title
+            mean = np.mean(param)
+            std = np.mean(param)
+            title = param_shared.name + " mean = " + str(mean) + " std = " + str(std)
+
+            # Plot histogram
+            fig = plt.figure()
+            fig.suptitle(title, fontsize=14, fontweight='bold')
+
+            ax = fig.add_subplot(111)
+            fig.subplots_adjust(top=0.85)
+
+            ax.set_xlabel('nb_occurence')
+            ax.set_ylabel('value')
+
+            param_ravel = param.ravel()
+            # Check for NaN values
+            if np.sum(np.isnan(param_ravel)):
+                # Give an arbitrary value
+                param_ravel = np.zeros(param_ravel.shape) - 1
+                fig.suptitle(title + " NAN !!", fontsize=14, fontweight='bold')
+
+            n, bins, patches = plt.hist(param_ravel, bins=50, normed=1, histtype='bar', rwidth=0.8)
+            plt.savefig(save_folder + '/' + param_shared.name + '.pdf')
+            plt.close(fig)
+
+            # Plot matrices
+            visualize_mat(param, save_folder, param_shared.name)
 
         # Plot weights
         for param_shared in self.params:
