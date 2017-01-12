@@ -5,7 +5,6 @@
 from acidano.models.lop.model_lop import Model_lop
 
 # Hyperopt
-from hyperopt import hp
 from acidano.utils import hopt_wrapper
 from math import log
 
@@ -24,7 +23,8 @@ from acidano.utils.measure import accuracy_measure, precision_measure, recall_me
 class cRnnRbm(Model_lop):
     """ RnnRbm for LOP
     Predictive model,
-        visible = orchestra(t) ^ piano(t)
+        visible = orchestra(t)
+        context = piano(t)
         cost = free-energy between positive and negative particles
     """
 
