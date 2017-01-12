@@ -14,7 +14,6 @@ http://www.uoguelph.ca/~gwtaylor/publications/nips2006mhmublv/motion.mat
 from acidano.models.lop.model_lop import Model_lop
 
 # Hyperopt
-from hyperopt import hp
 from acidano.utils import hopt_wrapper
 from math import log
 
@@ -95,7 +94,7 @@ class cRBM(Model_lop):
         super_space = Model_lop.get_hp_space()
 
         space = {'n_h': hopt_wrapper.qloguniform_int('n_h', log(100), log(5000), 10),
-                 'gibbs_step': hopt_wrapper.qloguniform_int('gibbs_steps', log(1), log(50), 1)
+                 'gibbs_steps': hopt_wrapper.qloguniform_int('gibbs_steps', log(1), log(50), 1)
                  }
 
         space.update(super_space)
@@ -308,7 +307,6 @@ class cRBM(Model_lop):
                 v_t = (np.asarray(next_sample(v_gen, p_gen))[0]).astype(theano.config.floatX)
                 # Add this visible sample to the generated orchestra
                 orchestra_gen[:,index,:] = v_t
-
             return (orchestra_gen,)
 
         return closure
