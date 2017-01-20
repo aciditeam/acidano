@@ -24,7 +24,7 @@ class Model_lop(object):
     Contains plot methods
     """
 
-    def __init__(self, model_param, dimensions):
+    def __init__(self, model_param, dimensions, checksum_database):
         # Training parameters
         self.batch_size = dimensions['batch_size']
         self.temporal_order = dimensions['temporal_order']
@@ -36,6 +36,9 @@ class Model_lop(object):
         # Numpy and theano random generators
         self.rng_np = RandomState(25)
         self.rng = RandomStreams(seed=25)
+
+        # Database checksums
+        self.checksum_database = checksum_database
 
         self.params = []
         self.step_flag = None
@@ -146,7 +149,8 @@ class Model_lop(object):
         #
         temporal_shift = np.tile(decreasing_time, (batch_size,1))
         # Reshape
-        index_full = index.reshape((batch_size, 1)) - temporal_shift
+        index_broadcast = np.expand_dims(index, axis=1)
+        index_full = index_broadcast - temporal_shift
         # Slicing
         seed_pr = pr[index_full,:]\
             .ravel()\

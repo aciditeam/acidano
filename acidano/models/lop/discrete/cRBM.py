@@ -34,10 +34,11 @@ class cRBM(Model_lop):
     def __init__(self,
                  model_param,
                  dimensions,
+                 checksum_database,
                  weights_initialization=None):
         """ inspired by G. Taylor"""
 
-        super(cRBM, self).__init__(model_param, dimensions)
+        super(cRBM, self).__init__(model_param, dimensions, checksum_database)
 
         # Datas are represented like this:
         #   - visible : (num_batch, orchestra_dim)

@@ -37,9 +37,10 @@ class LSTM(Model_lop):
     def __init__(self,
                  model_param,
                  dimensions,
+                 checksum_database,
                  weights_initialization=None):
 
-        super(LSTM, self).__init__(model_param, dimensions)
+        super(LSTM, self).__init__(model_param, dimensions, checksum_database)
 
         # Datas are represented like this:
         #   - visible = concatenation of the data : (num_batch, piano ^ orchestra_dim * temporal_order)

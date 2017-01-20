@@ -101,9 +101,6 @@ class LSTM_gaussian_mixture(Model_lop):
             #   - weights in the mixture
             self.W_mean = shared_normal((self.n_hs[-1], self.K_gaussian * self.n_o), 0.01, name='W_mean')
             self.b_mean = shared_zeros((self.K_gaussian * self.n_o), name='b_mean')
-            self.W_std = shared_normal((self.n_hs[-1], self.K_gaussian * self.n_o), 0.01, name='W_std')
-            # Special init for b_std : we don't want std to be equal to zero
-            self.b_std = shared_zeros((self.K_gaussian * self.n_o), bias=0.5, name='b_std')
             self.W_weights = shared_normal((self.n_hs[-1], self.K_gaussian), 0.01, name='W_weights')
             self.b_weights = shared_zeros((self.K_gaussian), name='b_weights')
         else:
@@ -123,8 +120,6 @@ class LSTM_gaussian_mixture(Model_lop):
                 self.b_o[layer] = weights_initialization['b_ho'][layer]
             self.W_mean = weights_initialization['W_mean']
             self.b_mean = weights_initialization['b_mean']
-            self.W_std = weights_initialization['W_std']
-            self.b_std = weights_initialization['b_std']
             self.W_weights = weights_initialization['W_weights']
             self.b_weights = weights_initialization['b_weights']
 

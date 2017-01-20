@@ -47,9 +47,10 @@ class LSTM_gaussian_mixture_2(Model_lop):
     def __init__(self,
                  model_param,
                  dimensions,
+                 checksum_database,
                  weights_initialization=None):
 
-        super(LSTM_gaussian_mixture_2, self).__init__(model_param, dimensions)
+        super(LSTM_gaussian_mixture_2, self).__init__(model_param, dimensions, checksum_database)
 
         self.n_v = dimensions['piano_dim']
         self.n_o = dimensions['orchestra_dim']

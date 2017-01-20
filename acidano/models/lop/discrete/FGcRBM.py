@@ -26,9 +26,10 @@ class FGcRBM(Model_lop):
     def __init__(self,
                  model_param,
                  dimensions,
+                 checksum_database,
                  weights_initialization=None):
 
-        super(FGcRBM, self).__init__(model_param, dimensions)
+        super(FGcRBM, self).__init__(model_param, dimensions, checksum_database)
 
         # Datas are represented like this:
         #   - visible : (num_batch, orchestra_dim)

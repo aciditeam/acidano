@@ -31,9 +31,10 @@ class cRnnRbm(Model_lop):
     def __init__(self,
                  model_param,
                  dimensions,
+                 checksum_database,
                  weights_initialization=None):
 
-        super(cRnnRbm, self).__init__(model_param, dimensions)
+        super(cRnnRbm, self).__init__(model_param, dimensions, checksum_database)
 
         # Number of visible units
         self.n_v = dimensions['orchestra_dim']

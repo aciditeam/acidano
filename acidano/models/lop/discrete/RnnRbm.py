@@ -31,9 +31,10 @@ class RnnRbm(Model_lop):
     def __init__(self,
                  model_param,
                  dimensions,
+                 checksum_database,
                  weights_initialization=None):
 
-        super(RnnRbm, self).__init__(model_param, dimensions)
+        super(RnnRbm, self).__init__(model_param, dimensions, checksum_database)
 
         self.n_orchestra = dimensions['orchestra_dim']
         self.n_piano = dimensions['piano_dim']
