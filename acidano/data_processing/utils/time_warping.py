@@ -33,7 +33,7 @@ def conversion_to_integer_list(pr, lenght):
     return output.tolist()
 
 
-def needleman_chord_wrapper(pr1, pr2):
+def needleman_chord_wrapper(pr1, pr2, gapopen, gapextend):
     # pr1 and pr2 are numpy matrices
     # For dictionnaries pianorolls, first apply sum_along_instru_dim
     # to obtain a matrix.
@@ -48,8 +48,6 @@ def needleman_chord_wrapper(pr1, pr2):
     # Compute the trace
     pr1_list = conversion_to_integer_list(pr1_pitch_class, len1)
     pr2_list = conversion_to_integer_list(pr2_pitch_class, len2)
-    gapopen = 3
-    gapextend = 0
     # Traces are backward
     trace_0, trace_1, sum_score, nbId, nbGaps = needleman_chord.needleman_chord(pr1_list, pr2_list, gapopen, gapextend)
 
