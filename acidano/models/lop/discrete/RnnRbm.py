@@ -5,7 +5,6 @@
 from acidano.models.lop.model_lop import Model_lop
 
 # Hyperopt
-from hyperopt import hp
 from acidano.utils import hopt_wrapper
 from math import log
 

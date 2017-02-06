@@ -168,7 +168,7 @@ class FGcRBM(Model_lop):
         fe = A + B
         return fe
 
-    def gibbs_step(self, v, z, bv, bh,dropout_mask):
+    def gibbs_step(self, v, z, bv, bh, dropout_mask):
         # bv and bh defines the dynamic biases computed thanks to u_tm1
         f_h = self.get_f_h(v, z)
         mean_h = T.nnet.sigmoid(f_h + bh)
