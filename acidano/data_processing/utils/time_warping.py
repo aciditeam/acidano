@@ -6,7 +6,6 @@ import numpy as np
 from pianoroll_processing import pitch_class, sum_along_instru_dim, get_pianoroll_time
 from fastdtw import fastdtw
 from scipy.spatial.distance import euclidean
-from event_level import get_event_ind
 
 import needleman_chord
 
