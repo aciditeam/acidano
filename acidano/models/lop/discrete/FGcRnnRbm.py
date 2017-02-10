@@ -47,17 +47,17 @@ class FGcRnnRbm(FGcRBM, Model_lop):
 
         # Weights
         if weights_initialization is None:
-            self.Wvf = shared_normal((self.n_orchestra, self.n_factor), 0.01, self.rng_np, name='Wvf')
-            self.Whf = shared_normal((self.n_hidden, self.n_factor), 0.01, self.rng_np, name='Whf')
-            self.Wzf = shared_normal((self.n_piano, self.n_factor), 0.01, self.rng_np, name='Wzf')
+            self.Wvf = shared_normal((self.n_orchestra, self.n_factor), 0.001, self.rng_np, name='Wvf')
+            self.Whf = shared_normal((self.n_hidden, self.n_factor), 0.001, self.rng_np, name='Whf')
+            self.Wzf = shared_normal((self.n_piano, self.n_factor), 0.001, self.rng_np, name='Wzf')
             self.bv = shared_zeros((self.n_orchestra), name='bv')
             self.bh = shared_zeros((self.n_hidden), name='bh')
-            self.Apf = shared_normal((self.n_hidden_recurrent, self.n_factor), 0.01, self.rng_np, name='Apf')
-            self.Avf = shared_normal((self.n_orchestra, self.n_factor), 0.01, self.rng_np, name='Avf')
-            self.Azf = shared_normal((self.n_piano, self.n_factor), 0.01, self.rng_np, name='Azf')
-            self.Bpf = shared_normal((self.n_hidden_recurrent, self.n_factor), 0.01, self.rng_np, name='Bpf')
-            self.Bhf = shared_normal((self.n_hidden, self.n_factor), 0.01, self.rng_np, name='Bhf')
-            self.Bzf = shared_normal((self.n_piano, self.n_factor), 0.01, self.rng_np, name='Bzf')
+            self.Apf = shared_normal((self.n_hidden_recurrent, self.n_factor), 0.001, self.rng_np, name='Apf')
+            self.Avf = shared_normal((self.n_orchestra, self.n_factor), 0.001, self.rng_np, name='Avf')
+            self.Azf = shared_normal((self.n_piano, self.n_factor), 0.001, self.rng_np, name='Azf')
+            self.Bpf = shared_normal((self.n_hidden_recurrent, self.n_factor), 0.001, self.rng_np, name='Bpf')
+            self.Bhf = shared_normal((self.n_hidden, self.n_factor), 0.001, self.rng_np, name='Bhf')
+            self.Bzf = shared_normal((self.n_piano, self.n_factor), 0.001, self.rng_np, name='Bzf')
             self.Wpp = shared_normal((self.n_hidden_recurrent, self.n_hidden_recurrent), 0.0001, self.rng_np, name='Wpp')
             self.Wvp = shared_normal((self.n_orchestra, self.n_hidden_recurrent), 0.0001, self.rng_np, name='Wvp')
             self.bp = shared_zeros(self.n_hidden_recurrent, name='bp')
@@ -173,7 +173,6 @@ class FGcRnnRbm(FGcRBM, Model_lop):
         p0.tag.test_value = np.zeros((self.batch_size, self.n_hidden_recurrent), dtype=theano.config.floatX)
         _, bv_dyn, bh_dyn, updates_rnn_inference = self.rnn_inference(v, z, p0)
 
-        import pdb; pdb.set_trace()
         # Train the FGcRBMs by blocks
         # Dropout for RBM consists in applying the same mask to the hidden units at every the gibbs sampling step
         if self.step_flag == 'train':
@@ -205,13 +204,13 @@ class FGcRnnRbm(FGcRBM, Model_lop):
     ###############################
     def cost_updates(self, optimizer):
         v_sample, mean_v, bv_dyn, bh_dyn, updates_train = self.get_negative_particle(self.v_init, self.z_init)
-        monitor = (T.nnet.binary_crossentropy(self.v_init, mean_v)).sum(axis=(1,2))/self.temporal_order
+        monitor = (T.nnet.binary_crossentropy(mean_v, self.v_init)).sum(axis=(1,2))/self.temporal_order
         # Mean over batches
         monitor = T.mean(monitor)
 
         # Compute cost function
         fe_positive = self.free_energy(self.v_init, self.z_init, bv_dyn, bh_dyn)
-        fe_negative = self.free_energy(v_sample, self.z_init, bv_dyn, bh_dyn, self.bh_dynamic)
+        fe_negative = self.free_energy(v_sample, self.z_init, bv_dyn, bh_dyn)
 
         # Mean along batches
         cost = T.mean(fe_positive) - T.mean(fe_negative)
@@ -233,8 +232,6 @@ class FGcRnnRbm(FGcRBM, Model_lop):
     ###############################
     @Model_lop.train_flag
     def get_train_function(self, piano, orchestra, optimizer, name):
-        import pdb; pdb.set_trace()
-
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -271,9 +268,6 @@ class FGcRnnRbm(FGcRBM, Model_lop):
     ###############################
     @Model_lop.validation_flag
     def get_validation_error(self, piano, orchestra, name):
-        import pdb; pdb.set_trace()
-        super(FGcRnnRbm, self).get_validation_error()
-
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -326,9 +320,6 @@ class FGcRnnRbm(FGcRBM, Model_lop):
                               generation_length, seed_size,
                               batch_generation_size,
                               name="generate_sequence"):
-        import pdb; pdb.set_trace()
-        super(FGcRnnRbm, self).get_generate_function()
-
         # Seed_size is actually fixed by the temporal_order
         seed_size = self.temporal_order
         self.batch_generation_size = batch_generation_size
@@ -348,14 +339,14 @@ class FGcRnnRbm(FGcRBM, Model_lop):
         #########
         p0.tag.test_value = np.zeros((batch_generation_size, self.n_hidden_recurrent), dtype=theano.config.floatX)
         #########
-        u_chain, _, _, updates_initialization = self.rnn_inference(self.p_seed, self.o_seed, p0)
-        u_seed = u_chain[-1]
+        p_chain, _, _, updates_initialization = self.rnn_inference(self.v_seed, self.z_seed, p0)
+        p_seed = p_chain[-1]
         index = T.ivector()
         index.tag.test_value = [199, 1082]
         # Get the indices for the seed and generate sequences
         end_seed = index - generation_length + seed_size
         seed_function = theano.function(inputs=[index],
-                                        outputs=[u_seed],
+                                        outputs=[p_seed],
                                         updates=updates_initialization,
                                         givens={self.z_seed: self.build_sequence(piano, end_seed, batch_generation_size, seed_size, self.n_piano),
                                                 self.v_seed: self.build_sequence(orchestra, end_seed, batch_generation_size, seed_size, self.n_orchestra)},
@@ -366,11 +357,11 @@ class FGcRnnRbm(FGcRBM, Model_lop):
         ########################################################################
         #########       Next sample
         # Graph for the orchestra sample and next hidden state
-        p_t, v_t, updates_next_sample = self.recurrence_generation(self.z_gen, self.p_gen)
+        next_p, next_v, updates_next_sample = self.recurrence_generation(self.z_gen, self.p_gen)
         # Compile a function to get the next visible sample
         next_sample = theano.function(
             inputs=[self.z_gen, self.p_gen],
-            outputs=[p_t, v_t],
+            outputs=[next_p, next_v],
             updates=updates_next_sample,
             name="next_sample",
         )
