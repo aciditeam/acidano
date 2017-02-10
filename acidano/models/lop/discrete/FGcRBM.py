@@ -159,10 +159,12 @@ class FGcRBM(Model_lop):
     ## NEGATIVE PARTICLE
     ###############################
     def free_energy(self, v, z, bv, bh):
+        # Get last index
+        last_axis = v.ndim - 1
         # Visible contribution
-        A = -(v * bv).sum(axis=1)
+        A = -(v * bv).sum(axis=last_axis)
         f_h = self.get_f_h(v, z)
-        B = - T.log(1 + T.exp(f_h + bh)).sum(axis=1)
+        B = - T.log(1 + T.exp(f_h + bh)).sum(axis=last_axis)
 
         # Sum the two contributions
         fe = A + B
