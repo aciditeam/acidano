@@ -63,6 +63,33 @@ class Model_lop(object):
         space_training.update(space_regularization)
         return space_training
 
+    ###############################
+    ##  Getter decorators
+    ###############################
+    @staticmethod
+    def train_flag(fun):
+        def wrapper(self, piano, orchestra, optimizer, name):
+            self.step_flag = 'train'
+            fun(self, piano, orchestra, optimizer, name)
+        return wrapper
+
+    @staticmethod
+    def validation_flag(fun):
+        def wrapper(self, piano, orchestra, name):
+            self.step_flag = 'validate'
+            fun(self, piano, orchestra, name)
+        return wrapper
+
+    @staticmethod
+    def generate_flag(fun):
+        def wrapper(self, piano, orchestra,
+                    generation_length, seed_size,
+                    batch_generation_size,
+                    name):
+            self.step_flag = 'generate'
+            fun(self, piano, orchestra, generation_length, seed_size, batch_generation_size, name)
+        return wrapper
+
     def save_weights(self, save_folder):
         def plot_process(param_shared):
             param = param_shared.get_value()
@@ -172,15 +199,3 @@ class Model_lop(object):
         orchestra_gen = np.zeros((batch_generation_size, generation_length, n_orchestra)).astype(theano.config.floatX)
         orchestra_gen[:, :seed_size, :] = orchestra_seed
         return piano_gen, orchestra_gen
-
-    ###############################
-    ##       Getter for theano function
-    ###############################
-    def get_train_function(self):
-        self.step_flag = 'train'
-
-    def get_validation_error(self):
-        self.step_flag = 'validate'
-
-    def get_generate_function(self):
-        self.step_flag = 'generate'

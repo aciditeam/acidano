@@ -130,8 +130,11 @@ class cRBM(Model_lop):
         # Dropout for RBM consists in applying the same mask to the hidden units at every the gibbs sampling step
         if self.step_flag == 'train':
             dropout_mask = self.rng.binomial(size=(self.batch_size, self.n_h), n=1, p=1-self.dropout_probability, dtype=theano.config.floatX)
-        else:
+        elif self.step_flag in ['validate', 'generate']:
             dropout_mask = (1-self.dropout_probability)
+        else:
+            raise ValueError("step_flag undefined")
+
         # Get dynamic biases
         bv_dyn = T.dot(p, self.A) + self.bv
         bh_dyn = T.dot(p, self.B) + self.bh
@@ -205,10 +208,8 @@ class cRBM(Model_lop):
         visible = orchestra[index,:]
         return visible
 
+    @Model_lop.train_flag
     def get_train_function(self, piano, orchestra, optimizer, name):
-
-        super(cRBM, self).get_train_function()
-
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -242,10 +243,8 @@ class cRBM(Model_lop):
     ###############################
     ##       VALIDATION FUNCTION
     ##############################
+    @Model_lop.validation_flag
     def get_validation_error(self, piano, orchestra, name):
-
-        super(cRBM, self).get_validation_error()
-
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -272,12 +271,10 @@ class cRBM(Model_lop):
         p_gen = np.concatenate((present_piano, past_orchestra), axis=1)
         return p_gen
 
+    @Model_lop.generate_flag
     def get_generate_function(self, piano, orchestra,
                               generation_length, seed_size, batch_generation_size,
                               name="generate_sequence"):
-
-        super(cRBM, self).get_generate_function()
-
         # Seed_size is actually fixed by the temporal_order
         seed_size = self.temporal_order - 1
 

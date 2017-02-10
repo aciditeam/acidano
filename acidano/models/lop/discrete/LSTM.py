@@ -171,7 +171,7 @@ class LSTM(Model_lop):
             # Just multiply weights by the dropout ratio
             h_lm1_t_corrupted = h_lm1_t * (1-self.dropout_probability)
         else:
-            raise(TypeError("In which step are we ? Training, validation or generation ?"))
+            raise ValueError("step_flag undefined")
 
         # Input gate
         i = propup_sigmoid(T.concatenate([h_lm1_t_corrupted, h_tm1], axis=axis), T.concatenate([L_vi, L_hi]), b_i)
@@ -255,10 +255,8 @@ class LSTM(Model_lop):
     ###############################
     ##       TRAIN FUNCTION
     ###############################
+    @Model_lop.train_flag
     def get_train_function(self, piano, orchestra, optimizer, name):
-
-        super(LSTM, self).get_train_function()
-
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -301,10 +299,8 @@ class LSTM(Model_lop):
     ###############################
     ##       VALIDATION FUNCTION
     ##############################
+    @Model_lop.validation_flag
     def get_validation_error(self, piano, orchestra, name):
-
-        super(LSTM,self).get_validation_error()
-
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -323,10 +319,8 @@ class LSTM(Model_lop):
     ###############################
     # Generation for the LSTM model is a bit special :
     # you can't seed the orchestration with the beginning of an existing score...
+    @Model_lop.generate_flag
     def get_generate_function(self, piano, orchestra, generation_length, seed_size, batch_generation_size, name="generate_sequence"):
-
-        super(LSTM, self).get_generate_function()
-
         # Index
         index = T.ivector()
 
