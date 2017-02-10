@@ -70,14 +70,14 @@ class Model_lop(object):
     def train_flag(fun):
         def wrapper(self, piano, orchestra, optimizer, name):
             self.step_flag = 'train'
-            fun(self, piano, orchestra, optimizer, name)
+            return fun(self, piano, orchestra, optimizer, name)
         return wrapper
 
     @staticmethod
     def validation_flag(fun):
         def wrapper(self, piano, orchestra, name):
             self.step_flag = 'validate'
-            fun(self, piano, orchestra, name)
+            return fun(self, piano, orchestra, name)
         return wrapper
 
     @staticmethod
@@ -87,7 +87,7 @@ class Model_lop(object):
                     batch_generation_size,
                     name):
             self.step_flag = 'generate'
-            fun(self, piano, orchestra, generation_length, seed_size, batch_generation_size, name)
+            return fun(self, piano, orchestra, generation_length, seed_size, batch_generation_size, name)
         return wrapper
 
     def save_weights(self, save_folder):
