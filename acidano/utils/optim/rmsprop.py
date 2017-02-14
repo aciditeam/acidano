@@ -17,13 +17,6 @@ class Rmsprop(object):
     RMSProp with nesterov momentum and gradient rescaling
     """
     def __init__(self, params):
-        self.running_square_ = [theano.shared(np.zeros_like(p.get_value()))
-                                for p in params]
-        self.running_avg_ = [theano.shared(np.zeros_like(p.get_value()))
-                             for p in params]
-        self.memory_ = [theano.shared(np.zeros_like(p.get_value()))
-                        for p in params]
-
         self.lr = params['lr']
         self.m = 0.9
         self.rescale = 5.0
@@ -37,7 +30,15 @@ class Rmsprop(object):
     def name():
         return "gradient_descent"
 
-    def updates(self, params, grads, updates):
+    def get_updates(self, params, grads, updates):
+        # Initialisation
+        self.running_square_ = [theano.shared(np.zeros_like(p.get_value()))
+                                for p in params]
+        self.running_avg_ = [theano.shared(np.zeros_like(p.get_value()))
+                             for p in params]
+        self.memory_ = [theano.shared(np.zeros_like(p.get_value()))
+                        for p in params]
+
         grad_norm = T.sqrt(sum(map(lambda x: T.sqr(x).sum(), grads)))
         not_finite = T.or_(T.isnan(grad_norm), T.isinf(grad_norm))
         grad_norm = T.sqrt(grad_norm)
