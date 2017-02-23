@@ -178,7 +178,7 @@ class cLstmRbm(LSTM, Model_lop):
         # previous state = state_tm1
         # previous output = u_tm1_corrupted
         # LSTM propagation
-        state_t, u_t = self.iteration(v_t, state_tm1, u_tm1,
+        state_t, u_t = LSTM.iteration(self, v_t, state_tm1, u_tm1,
                                       self.L_vi, self.L_ui, self.b_i,
                                       self.L_vf, self.L_uf, self.b_f,
                                       self.L_vstate, self.L_ustate, self.b_state,
@@ -351,7 +351,7 @@ class cLstmRbm(LSTM, Model_lop):
         v_t = v_chain[-1]
 
         # update the lstm states
-        state_t, u_t = self.iteration(v_t, state_tm1, u_tm1,
+        state_t, u_t = LSTM.iteration(self, v_t, state_tm1, u_tm1,
                                       self.L_vi, self.L_ui, self.b_i,
                                       self.L_vf, self.L_uf, self.b_f,
                                       self.L_vstate, self.L_ustate, self.b_state,

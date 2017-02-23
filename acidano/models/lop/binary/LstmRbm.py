@@ -3,6 +3,7 @@
 
 # Model lop
 from acidano.models.lop.model_lop import Model_lop
+from acidano.models.lop.binary.LSTM import LSTM
 
 # Hyperopt
 from acidano.utils import hopt_wrapper
@@ -20,7 +21,7 @@ from acidano.utils.init import shared_normal, shared_zeros
 from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure
 
 
-class LstRbm(Model_lop):
+class LstmRbm(LSTM, Model_lop):
     """ LstmRbm for LOP
     Predictive model,
         visible = orchestra(t) ^ piano(t)
@@ -33,7 +34,7 @@ class LstRbm(Model_lop):
                  checksum_database,
                  weights_initialization=None):
 
-        super(RnnRbm, self).__init__(model_param, dimensions, checksum_database)
+        Model_lop.__init__(self, model_param, dimensions, checksum_database)
 
         self.n_orchestra = dimensions['orchestra_dim']
         self.n_piano = dimensions['piano_dim']
@@ -56,8 +57,19 @@ class LstRbm(Model_lop):
             self.Wuo = shared_normal((self.n_hidden_recurrent, self.n_orchestra), 0.0001, self.rng_np, name='Wuo')
             self.Wpu = shared_normal((self.n_piano, self.n_hidden_recurrent), 0.0001, self.rng_np, name='Wpu')
             self.Wou = shared_normal((self.n_orchestra, self.n_hidden_recurrent), 0.0001, self.rng_np, name='Wou')
-            self.Wuu = shared_normal((self.n_hidden_recurrent, self.n_hidden_recurrent), 0.0001, self.rng_np, name='Wuu')
-            self.bu = shared_zeros(self.n_hidden_recurrent, name='bu')
+            # LSTM weights
+            self.L_vi = shared_normal((self.n_orchestra+self.n_piano, self.n_hidden_recurrent), 0.01, self.rng_np, name='L_vi')
+            self.L_ui = shared_normal((self.n_hidden_recurrent, self.n_hidden_recurrent), 0.01, self.rng_np, name='L_ui')
+            self.b_i = shared_zeros(self.n_hidden_recurrent, name='b_i')
+            self.L_vf = shared_normal((self.n_orchestra+self.n_piano, self.n_hidden_recurrent), 0.01, self.rng_np, name='L_vf')
+            self.L_uf = shared_normal((self.n_hidden_recurrent, self.n_hidden_recurrent), 0.01, self.rng_np, name='L_uf')
+            self.b_f = shared_zeros(self.n_hidden_recurrent, name='b_f')
+            self.L_vstate = shared_normal((self.n_orchestra+self.n_piano, self.n_hidden_recurrent), 0.01, self.rng_np, name='L_vstate')
+            self.L_ustate = shared_normal((self.n_hidden_recurrent, self.n_hidden_recurrent), 0.01, self.rng_np, name='L_ustate')
+            self.b_state = shared_zeros(self.n_hidden_recurrent, name='b_state')
+            self.L_vout = shared_normal((self.n_orchestra+self.n_piano, self.n_hidden_recurrent), 0.01, self.rng_np, name='L_vout')
+            self.L_uout = shared_normal((self.n_hidden_recurrent, self.n_hidden_recurrent), 0.01, self.rng_np, name='L_uout')
+            self.b_out = shared_zeros(self.n_hidden_recurrent, name='b_out')
         else:
             self.P = weights_initialization['P']
             self.bp = weights_initialization['bv']
@@ -69,13 +81,27 @@ class LstRbm(Model_lop):
             self.Wuo = weights_initialization['Wuo']
             self.Wpu = weights_initialization['Wpu']
             self.Wou = weights_initialization['Wou']
-            self.Wuu = weights_initialization['Wuu']
-            self.bu = weights_initialization['bu']
+            self.L_vi = weights_initialization['L_vi']
+            self.L_ui = weights_initialization['L_ui']
+            self.b_i = weights_initialization['b_i']
+            self.L_vf = weights_initialization['L_vf']
+            self.L_uf = weights_initialization['L_uf']
+            self.b_f = weights_initialization['b_f']
+            self.L_vstate = weights_initialization['L_vstate']
+            self.L_ustate = weights_initialization['L_ustate']
+            self.b_state = weights_initialization['b_state']
+            self.L_vout = weights_initialization['L_vout']
+            self.L_uout = weights_initialization['L_uout']
+            self.b_out = weights_initialization['b_out']
 
         self.params = [self.P, self.bp, self.O, self.bo, self.bh,
                        self.Wuh, self.Wup, self.Wuo,
-                       self.Wpu, self.Wou, self.Wuu,
-                       self.bu]
+                       self.Wpu, self.Wou,
+                       self.L_vi, self.L_ui, self.b_i,
+                       self.L_vf, self.L_uf, self.b_f,
+                       self.L_vstate, self.L_ustate, self.b_state,
+                       self.L_vout, self.L_uout, self.b_out]
+
 
         # Instanciate variables : (batch, time, pitch)
         # Note : we need the init variable to compile the theano function (get_train_function)
@@ -94,6 +120,7 @@ class LstRbm(Model_lop):
         self.o_seed = T.tensor3('o_seed', dtype=theano.config.floatX)
         self.p_gen = T.matrix('p_gen', dtype=theano.config.floatX)
         self.u_gen = T.matrix('u_gen', dtype=theano.config.floatX)
+        self.state_gen = T.matrix('state_gen', dtype=theano.config.floatX)
 
         return
 
@@ -150,32 +177,43 @@ class LstRbm(Model_lop):
         bp_t = self.bp + T.dot(u_tm1, self.Wup)
         bo_t = self.bo + T.dot(u_tm1, self.Wuo)
         bh_t = self.bh + T.dot(u_tm1, self.Wuh)
-        u_t = T.tanh(self.bu + T.dot(o_t, self.Wou) +
-                     T.dot(p_t, self.Wpu) + T.dot(u_tm1, self.Wuu))
-        return [u_t, bp_t, bo_t, bh_t]
 
-    def rnn_inference(self, p_init, o_init, u0):
+        # LSTM propagation
+        axis = p_t.ndim - 1
+        v_t = T.concatenate([o_t, p_t], axis=axis)
+        state_t, u_t = LSTM.iteration(self, v_t, state_tm1, u_tm1,
+                                      self.L_vi, self.L_ui, self.b_i,
+                                      self.L_vf, self.L_uf, self.b_f,
+                                      self.L_vstate, self.L_ustate, self.b_state,
+                                      self.L_vout, self.L_uout, self.b_out,
+                                      (self.n_orchestra+self.n_piano))
+
+        return [u_t, state_t, bp_t, bo_t, bh_t]
+
+    def rnn_inference(self, p_init, o_init, u0, state_0):
         # We have to dimshuffle so that time is the first dimension
         p = p_init.dimshuffle((1,0,2))
         o = o_init.dimshuffle((1,0,2))
 
         # Write the recurrence to get the bias for the RBM
-        (u_t, bp_t, bo_t, bh_t), updates_dynamic_biases = theano.scan(
+        (u_t, state_t, bp_t, bo_t, bh_t), updates_dynamic_biases = theano.scan(
             fn=self.recurrence,
-            sequences=[p, o], outputs_info=[u0, None, None, None])
+            sequences=[p, o], outputs_info=[u0, state_0, None, None, None])
 
         # Reshuffle the variables
         self.bp_dynamic = bp_t.dimshuffle((1,0,2))
         self.bo_dynamic = bo_t.dimshuffle((1,0,2))
         self.bh_dynamic = bh_t.dimshuffle((1,0,2))
 
-        return u_t, updates_dynamic_biases
+        return u_t, state_t, updates_dynamic_biases
 
     def inference(self, p, o):
         # Infer the dynamic biases
         u0 = T.zeros((self.batch_size, self.n_hidden_recurrent))  # initial value for the RNN hidden
         u0.tag.test_value = np.zeros((self.batch_size, self.n_hidden_recurrent), dtype=theano.config.floatX)
-        u_t, updates_rnn_inference = self.rnn_inference(p, o, u0)
+        state_0 = T.zeros((self.batch_size, self.n_hidden_recurrent))  # initial value for the RNN hidden
+        state_0.tag.test_value = np.zeros((self.batch_size, self.n_hidden_recurrent), dtype=theano.config.floatX)
+        _, _, updates_rnn_inference = self.rnn_inference(p, o, u0, state_0)
 
         # Train the RBMs by blocks
         # Dropout for RBM consists in applying the same mask to the hidden units at every the gibbs sampling step
@@ -320,11 +358,18 @@ class LstRbm(Model_lop):
         )
         o_t = o_chain[-1]
 
-        # update the rnn state
-        u_t = T.tanh(self.bu + T.dot(o_t, self.Wou) +
-                     T.dot(p_t, self.Wpu) + T.dot(u_tm1, self.Wuu))
+        # LSTM update
+        axis = p_t.ndim - 1
+        v_t = T.concatenate([o_t, p_t], axis=axis)
+        state_t, u_t = self.iteration(v_t, state_tm1, u_tm1,
+                                      self.L_vi, self.L_ui, self.b_i,
+                                      self.L_vf, self.L_uf, self.b_f,
+                                      self.L_vstate, self.L_ustate, self.b_state,
+                                      self.L_vout, self.L_uout, self.b_out,
+                                      self.n_v)
 
-        return u_t, o_t, updates_inference
+
+        return u_t, state_t, o_t, updates_inference
 
     @Model_lop.generate_flag
     def get_generate_function(self, piano, orchestra,
@@ -347,17 +392,21 @@ class LstRbm(Model_lop):
         #########       Initial hidden recurrent state (theano function)
         # Infer the state u at the end of the seed sequence
         u0 = T.zeros((batch_generation_size, self.n_hidden_recurrent))  # initial value for the RNN hidden
+        state_0 = T.zeros((batch_generation_size, self.n_hidden_recurrent))
         #########
         u0.tag.test_value = np.zeros((batch_generation_size, self.n_hidden_recurrent), dtype=theano.config.floatX)
+        state_0.tag.test_value = np.zeros((batch_generation_size, self.n_hidden_recurrent), dtype=theano.config.floatX)
         #########
-        (u_chain), updates_initialization = self.rnn_inference(self.p_seed, self.o_seed, u0)
+        u_chain, state_chain, updates_initialization = self.rnn_inference(self.p_seed, self.o_seed, u0)
         u_seed = u_chain[-1]
+        state_seed = state_chain[-1]
+        #########
         index = T.ivector()
         index.tag.test_value = [199, 1082]
         # Get the indices for the seed and generate sequences
         end_seed = index - generation_length + seed_size
         seed_function = theano.function(inputs=[index],
-                                        outputs=[u_seed],
+                                        outputs=[u_seed, state_seed],
                                         updates=updates_initialization,
                                         givens={self.p_seed: self.build_sequence(piano, end_seed, batch_generation_size, seed_size, self.n_piano),
                                                 self.o_seed: self.build_sequence(orchestra, end_seed, batch_generation_size, seed_size, self.n_orchestra)},
@@ -368,11 +417,11 @@ class LstRbm(Model_lop):
         ########################################################################
         #########       Next sample
         # Graph for the orchestra sample and next hidden state
-        u_t, o_t, updates_next_sample = self.recurrence_generation(self.p_gen, self.u_gen)
+        u_t, state_t, o_t, updates_next_sample = self.recurrence_generation(self.p_gen, self.u_gen)
         # Compile a function to get the next visible sample
         next_sample = theano.function(
-            inputs=[self.p_gen, self.u_gen],
-            outputs=[u_t, o_t],
+            inputs=[self.p_gen, self.u_gen, self.state_gen],
+            outputs=[u_t, state_t, o_t],
             updates=updates_next_sample,
             name="next_sample",
         )
@@ -380,7 +429,7 @@ class LstRbm(Model_lop):
 
         def closure(ind):
             # Get the initial hidden chain state
-            (u_t,) = seed_function(ind)
+            (u_t, state_t) = seed_function(ind)
 
             # Initialize generation matrice
             piano_gen, orchestra_gen = self.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)
@@ -389,7 +438,7 @@ class LstRbm(Model_lop):
                 # Build piano vector
                 present_piano = piano_gen[:,time_index,:]
                 # Next Sample and update hidden chain state
-                u_t, o_t = next_sample(present_piano, u_t)
+                u_t, state_t, o_t = next_sample(present_piano, u_t, state_t)
                 # Add this visible sample to the generated orchestra
                 orchestra_gen[:,time_index,:] = o_t
 
