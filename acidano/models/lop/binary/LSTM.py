@@ -153,14 +153,7 @@ class LSTM(Model_lop):
     ###############################
     ##  FORWARD PASS
     ###############################
-    def iteration(self, h_lm1_t, c_tm1, h_tm1,
-                  L_vi, L_hi, b_i,
-                  L_vf, L_hf, b_f,
-                  L_vc, L_hc, b_c,
-                  L_vo, L_ho, b_o,
-                  n_lm1):
-        # Sum along last axis
-        axis = h_lm1_t.ndim - 1
+    def corruption(self, h_lm1_t, n_lm1, axis):
         # Get input dimension (dieu que c'est moche)
         size_mask = (self.batch_size, n_lm1)
         # Apply dropout (see https://arxiv.org/pdf/1409.2329.pdf for details)
@@ -172,7 +165,18 @@ class LSTM(Model_lop):
             h_lm1_t_corrupted = h_lm1_t * (1-self.dropout_probability)
         else:
             raise ValueError("step_flag undefined")
+        return h_lm1_t_corrupted, axis
 
+    def iteration(self, h_lm1_t, c_tm1, h_tm1,
+                  L_vi, L_hi, b_i,
+                  L_vf, L_hf, b_f,
+                  L_vc, L_hc, b_c,
+                  L_vo, L_ho, b_o,
+                  n_lm1):
+        # Sum along last axis
+        axis = h_lm1_t.ndim - 1
+        # Dropout
+        h_lm1_t_corrupted = self.corruption(h_lm1_t, n_lm1, axis)
         # Input gate
         i = propup_sigmoid(T.concatenate([h_lm1_t_corrupted, h_tm1], axis=axis), T.concatenate([L_vi, L_hi]), b_i)
         # Forget gate
