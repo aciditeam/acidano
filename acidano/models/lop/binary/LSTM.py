@@ -165,7 +165,7 @@ class LSTM(Model_lop):
             h_lm1_t_corrupted = h_lm1_t * (1-self.dropout_probability)
         else:
             raise ValueError("step_flag undefined")
-        return h_lm1_t_corrupted, axis
+        return h_lm1_t_corrupted
 
     def iteration(self, h_lm1_t, c_tm1, h_tm1,
                   L_vi, L_hi, b_i,
