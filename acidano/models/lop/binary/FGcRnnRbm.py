@@ -2,7 +2,7 @@
 # -*- coding: utf8 -*-
 
 # Model lop
-from acidano.models.lop.discrete.FGcRBM import FGcRBM
+from acidano.models.lop.binary.FGcRBM import FGcRBM
 from acidano.models.lop.model_lop import Model_lop
 
 # Hyperopt
