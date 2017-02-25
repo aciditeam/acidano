@@ -414,7 +414,7 @@ class FGcLstmRbm(FGcRBM, LSTM, Model_lop):
 
         def closure(ind):
             # Get the initial hidden chain state
-            (p_t,) = seed_function(ind)
+            p_t, state_t = seed_function(ind)
 
             # Initialize generation matrice
             piano_gen, orchestra_gen = self.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)

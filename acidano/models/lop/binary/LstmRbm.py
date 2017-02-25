@@ -330,7 +330,7 @@ class LstmRbm(LSTM, Model_lop):
     ##       GENERATION
     #   Need no seed in this model
     ###############################
-    def recurrence_generation(self, p_t, u_tm1):
+    def recurrence_generation(self, p_t, u_tm1, state_tm1):
         bp_t = self.bp + T.dot(u_tm1, self.Wup)
         bo_t = self.bo + T.dot(u_tm1, self.Wuo)
         bh_t = self.bh + T.dot(u_tm1, self.Wuh)
@@ -366,7 +366,7 @@ class LstmRbm(LSTM, Model_lop):
                                       self.L_vf, self.L_uf, self.b_f,
                                       self.L_vstate, self.L_ustate, self.b_state,
                                       self.L_vout, self.L_uout, self.b_out,
-                                      self.n_v)
+                                      self.n_orchestra)
 
 
         return u_t, state_t, o_t, updates_inference
@@ -397,7 +397,7 @@ class LstmRbm(LSTM, Model_lop):
         u0.tag.test_value = np.zeros((batch_generation_size, self.n_hidden_recurrent), dtype=theano.config.floatX)
         state_0.tag.test_value = np.zeros((batch_generation_size, self.n_hidden_recurrent), dtype=theano.config.floatX)
         #########
-        u_chain, state_chain, updates_initialization = self.rnn_inference(self.p_seed, self.o_seed, u0)
+        u_chain, state_chain, updates_initialization = self.rnn_inference(self.p_seed, self.o_seed, u0, state_0)
         u_seed = u_chain[-1]
         state_seed = state_chain[-1]
         #########
@@ -417,7 +417,7 @@ class LstmRbm(LSTM, Model_lop):
         ########################################################################
         #########       Next sample
         # Graph for the orchestra sample and next hidden state
-        u_t, state_t, o_t, updates_next_sample = self.recurrence_generation(self.p_gen, self.u_gen)
+        u_t, state_t, o_t, updates_next_sample = self.recurrence_generation(self.p_gen, self.u_gen, self.state_gen)
         # Compile a function to get the next visible sample
         next_sample = theano.function(
             inputs=[self.p_gen, self.u_gen, self.state_gen],
