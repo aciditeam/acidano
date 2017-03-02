@@ -106,8 +106,8 @@ class RnnRbm(Model_lop):
 
         super_space = Model_lop.get_hp_space()
 
-        space = {'n_hidden': hopt_wrapper.qloguniform_int('n_hidden', log(100), log(2000), 10),
-                 'n_hidden_recurrent': hopt_wrapper.qloguniform_int('n_hidden_recurrent', log(100), log(2000), 10),
+        space = {'n_hidden': hopt_wrapper.qloguniform_int('n_hidden', log(100), log(5000), 10),
+                 'n_hidden_recurrent': hopt_wrapper.qloguniform_int('n_hidden_recurrent', log(100), log(5000), 10),
                  'gibbs_steps': hopt_wrapper.qloguniform_int('gibbs_steps', log(1), log(50), 1),
                  }
 

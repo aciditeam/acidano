@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
-""" Random for binary units """
+""" Repeat for binary units """
 
 # Model lop
 from acidano.models.lop.model_lop import Model_lop
 
 # Hyperopt
 from acidano.utils import hopt_wrapper
-from hyperopt import hp
 from math import log
 
 # Numpy
@@ -23,22 +22,22 @@ from acidano.utils.init import shared_normal, shared_zeros
 from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure
 
 
-class Random(Model_lop):
-    """Random : bernouilli(p)"""
+class Repeat(Model_lop):
+    """Repeat previous frame
+    Notes : why not 100% accuracy if we just repeat o(t) instead of o(t-1) ?
+    Because if the true frame is a silence and predicted frame is a silence, the score is not 1 but 0...
+    """
     def __init__(self,
                  model_param,
                  dimensions,
                  checksum_database,
                  weights_initialization=None):
 
-        super(Random, self).__init__(model_param, dimensions, checksum_database)
+        Model_lop.__init__(self, model_param, dimensions, checksum_database)
         self.n_orchestra = dimensions['orchestra_dim']
         self.n_piano = dimensions['piano_dim']
-
-        # p should set equal to the average number of note on in the database
-        self.p = model_param['p']
-
         self.v_truth = T.matrix('v_truth', dtype=theano.config.floatX)
+        self.past = T.matrix('past', dtype=theano.config.floatX)
         return
 
     ###############################
@@ -48,14 +47,14 @@ class Random(Model_lop):
     @staticmethod
     def get_hp_space():
         super_space = Model_lop.get_hp_space()
-        space = {'p': hp.uniform('p', 0, 1),
-                 'temporal_order': hopt_wrapper.quniform_int('p', 1, 1, 1)}
+        # Overwrite temporal_order
+        space = {'temporal_order': hopt_wrapper.quniform_int('temporal_order', 1, 1, 1)}
         space.update(super_space)
         return space
 
     @staticmethod
     def name():
-        return "Random bernouilli(p)"
+        return "Repeat"
 
     ###############################
     ##       TRAIN FUNCTION
@@ -72,7 +71,7 @@ class Random(Model_lop):
     ##       PREDICTION
     ###############################
     def prediction_measure(self):
-        predicted_frame = self.rng.binomial(size=(self.batch_size, self.n_orchestra), n=1, p=self.p)
+        predicted_frame = self.past
         # Get the ground truth
         true_frame = self.v_truth
         # Measure the performances
@@ -89,6 +88,10 @@ class Random(Model_lop):
         visible = orchestra[index,:]
         return visible
 
+    def build_past(self, orchestra, index):
+        past = orchestra[index-1,:]
+        return past
+
     @Model_lop.validation_flag
     def get_validation_error(self, piano, orchestra, name):
         # index to a [mini]batch : int32
@@ -100,7 +103,8 @@ class Random(Model_lop):
         return theano.function(inputs=[index],
                                outputs=[precision, recall, accuracy],
                                updates=updates_valid,
-                               givens={self.v_truth: self.build_visible(orchestra, index)},
+                               givens={self.v_truth: self.build_visible(orchestra, index),
+                                       self.past: self.build_past(orchestra, index)},
                                name=name
                                )
 
@@ -115,9 +119,8 @@ class Random(Model_lop):
             # Initialize generation matrice
             _, orchestra_gen = self.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)
             for index in xrange(seed_size, generation_length, 1):
-
                 # Get the next sample
-                v_t = np.random.binomial(n=1, p=self.p, size=(batch_generation_size, self.n_orchestra)).astype(theano.config.floatX)
+                v_t = orchestra_gen[:,index-1,:]
                 # Add this visible sample to the generated orchestra
                 orchestra_gen[:,index,:] = v_t
             return (orchestra_gen,)

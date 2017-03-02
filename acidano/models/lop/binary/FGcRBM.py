@@ -101,9 +101,9 @@ class FGcRBM(Model_lop):
 
         super_space = Model_lop.get_hp_space()
 
-        space = {'n_hidden': hopt_wrapper.qloguniform_int('n_hidden', log(100), log(2000), 10),
-                 'n_factor': hopt_wrapper.qloguniform_int('n_factor', log(100), log(2000), 10),
-                 'gibbs_steps': hopt_wrapper.qloguniform_int('gibbs_steps', log(1), log(30), 1)
+        space = {'n_hidden': hopt_wrapper.qloguniform_int('n_hidden', log(100), log(5000), 10),
+                 'n_factor': hopt_wrapper.qloguniform_int('n_factor', log(100), log(5000), 10),
+                 'gibbs_steps': hopt_wrapper.qloguniform_int('gibbs_steps', log(1), log(50), 1)
                  }
 
         space.update(super_space)
