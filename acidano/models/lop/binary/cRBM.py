@@ -94,8 +94,8 @@ class cRBM(Model_lop):
 
         super_space = Model_lop.get_hp_space()
 
-        space = {'n_h': hopt_wrapper.qloguniform_int('n_h', log(100), log(5000), 10),
-                 'gibbs_steps': hopt_wrapper.qloguniform_int('gibbs_steps', log(1), log(50), 1)
+        space = {'n_h': hopt_wrapper.qloguniform_int('n_h', log(3000), log(5000), 10),
+                 'gibbs_steps': hopt_wrapper.qloguniform_int('gibbs_steps', log(20), log(50), 1)
                  }
 
         space.update(super_space)
