@@ -7,6 +7,7 @@
 import math
 import numpy as np
 
+
 def from_continuous_to_categorical(pr_continuous, C):
     # pr_continuous = matrix, values between 0 1
     # C = number of category

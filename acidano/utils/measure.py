@@ -60,3 +60,31 @@ def precision_measure(true_frame, pred_frame):
     precision_measure = T.switch(T.eq(quotient, 0), 0, true_positive / quotient)
 
     return precision_measure
+
+
+def accuracy_measure_categorical(true_frame, pred_frame):
+    axis = true_frame.ndim - 1
+    # true_frame must be a binary vector
+    true_positive = T.sum(pred_frame * true_frame, axis=axis)
+    return true_positive
+
+
+def accuracy_measure_not_shared_categorical(true_frame, pred_frame):
+    axis = true_frame.ndim - 1
+    # true_frame must be a binary vector
+    true_positive = T.sum(pred_frame * true_frame, axis=axis)
+    return true_positive
+
+
+def recall_measure_categorical(true_frame, pred_frame):
+    axis = true_frame.ndim - 1
+    # true_frame must be a binary vector
+    true_positive = T.sum(pred_frame * true_frame, axis=axis)
+    return true_positive
+
+
+def precision_measure_categorical(true_frame, pred_frame):
+    axis = true_frame.ndim - 1
+    # true_frame must be a binary vector
+    true_positive = T.sum(pred_frame * true_frame, axis=axis)
+    return true_positive

@@ -2,7 +2,7 @@
 # -*- coding: utf8 -*-
 
 
-class Categorical_lop_model(Object):
+class Categorical_lop_model(object):
     """
     Template class for the lop models.
     Contains plot methods

@@ -4,11 +4,8 @@
 """ Categorical cRBM """
 
 # Model lop
-from acidano.models.lop.Categorical.categorical_lop_model import Categorical_lop_model
-
-# Hyperopt
-from acidano.utils import hopt_wrapper
-from math import log
+from acidano.models.lop.categorical.categorical_lop_model import Categorical_lop_model
+from acidano.models.lop.binary.cRBM import cRBM
 
 # Numpy
 import numpy as np
@@ -17,9 +14,9 @@ import numpy as np
 import theano
 import theano.tensor as T
 
+from acidano.utils.init import shared_zeros
 # Performance measures
-from acidano.utils.init import shared_normal, shared_zeros
-from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure
+from acidano.utils.measure import accuracy_measure_categorical, precision_measure_categorical, recall_measure_categorical
 
 
 class cRBM_cat(Categorical_lop_model, cRBM):
@@ -100,11 +97,10 @@ class cRBM_cat(Categorical_lop_model, cRBM):
         # Get the ground truth
         true_frame = self.v_truth
         # Measure the performances
-        precision = precision_measure(true_frame, predicted_frame)
-        recall = recall_measure(true_frame, predicted_frame)
-        accuracy = accuracy_measure(true_frame, predicted_frame)
+        precision = precision_measure_categorical(true_frame, predicted_frame)
+        recall = recall_measure_categorical(true_frame, predicted_frame)
+        accuracy = accuracy_measure_categorical(true_frame, predicted_frame)
         return precision, recall, accuracy, updates_valid
-
 
     ###############################
     ##       VALIDATION FUNCTION
@@ -116,7 +112,7 @@ class cRBM_cat(Categorical_lop_model, cRBM):
     ###############################
     #    build_past_generation(self, piano_gen, orchestra_gen, index, batch_size, length_seq):
 
-    @Model_lop.generate_flag
+    @cRBM.generate_flag
     def get_generate_function(self, piano, orchestra,
                               generation_length, seed_size, batch_generation_size,
                               name="generate_sequence"):
@@ -147,7 +143,7 @@ class cRBM_cat(Categorical_lop_model, cRBM):
                 # Build initialisation vector
                 ######## Respect categorical structure when initializing
                 ##### We just set all units to the same value so that none of them is favored
-                self.v = shared_zeros((self.batch_size, self.n_v), bias=1/self.N_cat, name=None)ype(theano.config.floatX)
+                v_gen = shared_zeros((self.batch_size, self.n_v), bias=1/self.N_cat, name=None).astype(theano.config.floatX)
                 # Get the next sample
                 v_t = (np.asarray(next_sample(v_gen, p_gen))[0]).astype(theano.config.floatX)
                 # Add this visible sample to the generated orchestra
