@@ -85,18 +85,36 @@ def write_midi(pr, quantization, write_path, tempo=80):
 
 
 if __name__ == '__main__':
-    from acidano.data_processing.midi.read_midi import Read_midi
-    song_path = "/Users/leo/Recherche/GitHub_Aciditeam/database/Orchestration/Orchestration_checked/bouliane/0/Beethoven_Symph3_ii(1-8,105-115)_ORCH+REDUC+piano_orch.mid"
-    csv_path = "/Users/leo/Recherche/GitHub_Aciditeam/database/Orchestration/Orchestration_checked/bouliane/0/Beethoven_Symph3_ii(1-8,105-115)_ORCH+REDUC+piano_orch.csv"
-    quantization = 60
-    reader = Read_midi(song_path, quantization)
-    pr = reader.read_file()
-    pr_map = map_instrument(pr, csv_path)
+    # from acidano.data_processing.midi.read_midi import Read_midi
+    # song_path = "/Users/leo/Recherche/GitHub_Aciditeam/database/Orchestration/Orchestration_checked/bouliane/0/Beethoven_Symph3_ii(1-8,105-115)_ORCH+REDUC+piano_orch.mid"
+    # csv_path = "/Users/leo/Recherche/GitHub_Aciditeam/database/Orchestration/Orchestration_checked/bouliane/0/Beethoven_Symph3_ii(1-8,105-115)_ORCH+REDUC+piano_orch.csv"
+    # quantization = 60
+    # reader = Read_midi(song_path, quantization)
+    # pr = reader.read_file()
+    # pr_map = map_instrument(pr, csv_path)
+    #
+    # pr_flat = sum_along_instru_dim(pr_map)
+    # temp_csv = 'temp.csv'
+    # np.savetxt(temp_csv, pr_flat, delimiter=',')
+    # dump_to_csv(temp_csv, temp_csv)
+    # write_numpy_array_html('pr.html', 'temp')
+    #
+    # write_midi(pr_map, quantization,"test.mid", tempo=30)
 
-    pr_flat = sum_along_instru_dim(pr_map)
-    temp_csv = 'temp.csv'
-    np.savetxt(temp_csv, pr_flat, delimiter=',')
-    dump_to_csv(temp_csv, temp_csv)
-    write_numpy_array_html('pr.html', 'temp')
+    # Writing a midi sweep with a crescendo
+    base_mat = np.zeros((16,128))
+    base_mat[:4,60] = 30
+    base_mat[4:8,62] = 60
+    base_mat[8:12,64] = 90
+    base_mat[12:16,65] = 120
 
-    write_midi(pr_map, quantization,"test.mid", tempo=30)
+    base_mat_bass = np.zeros((16,128))
+    base_mat_bass[:4,36] = 30
+    base_mat_bass[4:8,38] = 60
+    base_mat_bass[8:12,40] = 90
+    base_mat_bass[12:16,41] = 120
+
+    pr_piano = {'piano': base_mat}
+    pr_orch = {'violin': base_mat, 'trombone': base_mat_bass}
+    write_midi(pr_piano, quantization=4, write_path="DEBUG/piano.mid", tempo=80)
+    write_midi(pr_orch, quantization=4, write_path="DEBUG/orch.mid", tempo=80)
