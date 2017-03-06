@@ -38,7 +38,6 @@ def needleman_chord_wrapper(pr1, pr2, gapopen, gapextend):
     # to obtain a matrix.
     # To warp the pr dictionnary on the returned warped time path,
     # use the next function : warp_dictionnary_trace()
-
     pr1_pitch_class = pitch_class(pr1)
     pr2_pitch_class = pitch_class(pr2)
     len1 = pr1_pitch_class.shape[0]

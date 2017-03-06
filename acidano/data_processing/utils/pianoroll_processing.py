@@ -20,10 +20,19 @@ def get_pianoroll_time(pianoroll):
         return None
     return T_pr_list[0]
 
+def get_pitch_dim(pianoroll):
+    N_pr_list = []
+    for k,v in pianoroll.iteritems():
+        N_pr_list.append(v.shape[1])
+    if not len(set(N_pr_list)) == 1:
+        print "Inconsistent dimensions in the new PR"
+        raise NameError("Pr dimension")
+    return N_pr_list[0]
 
 def sum_along_instru_dim(pianoroll):
     T_pr = get_pianoroll_time(pianoroll)
-    rp = np.zeros((T_pr, 128), dtype=np.int16)
+    N_pr = get_pitch_dim(pianoroll)
+    rp = np.zeros((T_pr, N_pr), dtype=np.int16)
     for k,v in pianoroll.iteritems():
         rp = np.maximum(rp, v)
     return rp
