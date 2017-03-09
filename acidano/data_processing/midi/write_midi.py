@@ -102,17 +102,36 @@ if __name__ == '__main__':
     # write_midi(pr_map, quantization,"test.mid", tempo=30)
 
     # Writing a midi sweep with a crescendo
-    base_mat = np.zeros((16,128))
-    base_mat[:4,60] = 30
-    base_mat[4:8,62] = 60
-    base_mat[8:12,64] = 90
-    base_mat[12:16,65] = 120
+    # base_mat = np.zeros((16000,128))
+    # base_mat_bass = np.zeros((16000,128))
+    # i = 0
+    # while(i<16000):
+    #     base_mat[i:i+4,60] = 30
+    #     base_mat[i+4:i+8,62] = 60
+    #     base_mat[i+8:i+12,64] = 90
+    #     base_mat[i+12:i+16,65] = 120
+    #
+    #     base_mat_bass[i:i+4,36] = 30
+    #     base_mat_bass[i+4:i+8,38] = 60
+    #     base_mat_bass[i+8:i+12,40] = 90
+    #     base_mat_bass[i+12:i+16,41] = 120
+    #
+    #     i = i + 16
+    #
+    # pr_piano = {'piano': base_mat}
+    # pr_orch = {'violin': base_mat, 'trombone': base_mat_bass}
+    # write_midi(pr_piano, quantization=4, write_path="DEBUG/piano.mid", tempo=80)
+    # write_midi(pr_orch, quantization=4, write_path="DEBUG/orch.mid", tempo=80)
 
-    base_mat_bass = np.zeros((16,128))
-    base_mat_bass[:4,36] = 30
-    base_mat_bass[4:8,38] = 60
-    base_mat_bass[8:12,40] = 90
-    base_mat_bass[12:16,41] = 120
+    # Writing a midi sweep with a crescendo
+    base_mat = np.zeros((16000,128))
+    base_mat_bass = np.zeros((16000,128))
+    i = 0
+    while(i<16000):
+        base_mat[i:i+4,60] = 30
+        base_mat[i+8:i+12,64] = 90
+        i = i + 16
+    base_mat_bass[:-5,36] = 120
 
     pr_piano = {'piano': base_mat}
     pr_orch = {'violin': base_mat, 'trombone': base_mat_bass}
