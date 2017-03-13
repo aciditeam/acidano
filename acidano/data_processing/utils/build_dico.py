@@ -421,7 +421,7 @@ def build_dico():
             ur"vibraphone?",
         ],
         u"viola": [
-            ur"(viola|vla|va|bratsche)[^gambro]*$",
+            ur"(viol[ea]|vla|va|bratsche)[^gambro]*$",
         ],
         u"viola d'amore": [
             ur"va\.? d'am",
@@ -434,7 +434,7 @@ def build_dico():
             ur"viola[\sI]+da braccio",
         ],
         u"violin": [
-            ur"viol[eio]n[oe]?( (principale|secondo))?[^c]*?$",  # Avoid violoncello and viola
+            ur"viol[io]n[oe]?( (principale|secondo))?[^c]*?$",  # Avoid violoncello and viola
             ur"viol?\.?[^ach-z]*$",
             ur"vl[^a-hj-z]*$",
             ur"geige",

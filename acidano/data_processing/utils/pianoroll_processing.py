@@ -37,13 +37,11 @@ def sum_along_instru_dim(pianoroll):
         rp = np.maximum(rp, v)
     return rp
 
-
 def get_first_last_non_zero(pianoroll):
     PR = sum_along_instru_dim(pianoroll)
     first = min(np.nonzero(np.sum(PR, axis=1))[0])
     last = max(np.nonzero(np.sum(PR, axis=1))[0])
     return first, last
-
 
 def clip_pr(pianoroll):
     # Remove zero at the beginning and end of prs
@@ -53,26 +51,18 @@ def clip_pr(pianoroll):
         out[k] = v[start_time:end_time,:]
     return out
 
-
 def pitch_class(pr):
-
     nb_class = 12
     nb_pitch = pr.shape[1]
-
     if not nb_pitch == 128:
         raise Exception('Pitch dimension should be equal to 128')
-
     pr_red = np.zeros((pr.shape[0], nb_class))
-
     for p in range(nb_pitch):
         c = p % nb_class
         pr_red[:, c] += pr[:, p]
-
     # Binary
     pr_red_bin = (pr_red > 0).astype(int)
-
     return pr_red_bin
-
 
 if __name__ == "__main__":
     from acidano.data_processing.midi.read_midi import Read_midi
