@@ -28,7 +28,7 @@ class Rmsprop(object):
 
     @staticmethod
     def name():
-        return "gradient_descent"
+        return "rms_prop"
 
     def get_updates(self, params, grads, updates):
         # Initialisation
