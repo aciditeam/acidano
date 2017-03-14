@@ -29,7 +29,7 @@ class FGcRBM(Model_lop):
                  checksum_database,
                  weights_initialization=None):
 
-        super(FGcRBM, self).__init__(model_param, dimensions, checksum_database)
+        Model_lop.__init__(self, model_param, dimensions, checksum_database)
 
         # Datas are represented like this:
         #   - visible : (num_batch, orchestra_dim)
@@ -187,7 +187,6 @@ class FGcRBM(Model_lop):
         # Get dynamic biases
         bv_dyn = self.get_bv_dyn(p, z)
         bh_dyn = self.get_bh_dyn(p, z)
-
         # Train the RBMs by blocks
         # Dropout for RBM consists in applying the same mask to the hidden units at every gibbs sampling step
         if self.step_flag == 'train':
@@ -207,6 +206,18 @@ class FGcRBM(Model_lop):
         # Get last element of the gibbs chain
         v_sample = v_chain[-1]
         mean_v = mean_chain[-1]
+
+        #########################
+        #########################
+        # Threshold ???
+        # threshold = 0.25
+        # idxs = (mean_v < threshold).nonzero()
+        # mean_v_clip = theano.tensor.set_subtensor(mean_v[idxs], 0)
+        # # Resample
+        # v_sample = self.rng.binomial(size=mean_v_clip.shape, n=1, p=mean_v_clip,
+        #                       dtype=theano.config.floatX)
+        #########################
+        #########################
 
         return v_sample, mean_v, bv_dyn, bh_dyn, updates_rbm
 
@@ -261,8 +272,8 @@ class FGcRBM(Model_lop):
         visible = orchestra[index,:]
         return visible
 
-    @Model_lop.train_flag
     def get_train_function(self, piano, orchestra, optimizer, name):
+        Model_lop.get_train_function(self)
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -297,8 +308,8 @@ class FGcRBM(Model_lop):
     ###############################
     ##       VALIDATION FUNCTION
     ##############################
-    @Model_lop.validation_flag
     def get_validation_error(self, piano, orchestra, name):
+        Model_lop.get_validation_error(self)
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -326,10 +337,10 @@ class FGcRBM(Model_lop):
         present_piano = piano_gen[:,index,:]
         return present_piano
 
-    @Model_lop.generate_flag
     def get_generate_function(self, piano, orchestra,
                               generation_length, seed_size, batch_generation_size,
                               name="generate_sequence"):
+        Model_lop.get_generate_function(self)
         # Seed_size is actually fixed by the temporal_order
         seed_size = self.temporal_order - 1
 

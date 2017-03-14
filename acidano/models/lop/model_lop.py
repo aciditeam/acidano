@@ -14,6 +14,8 @@ from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 import theano.tensor as T
 import theano
 
+from bokeh.plotting import figure, output_file, save
+
 from hyperopt import hp
 from math import log
 
@@ -64,38 +66,26 @@ class Model_lop(object):
         return space_training
 
     ###############################
-    ##  Getter decorators
+    ##  Set flags for the different steps
     ###############################
-    @staticmethod
-    def train_flag(fun):
-        def wrapper(self, piano, orchestra, optimizer, name):
-            self.step_flag = 'train'
-            return fun(self, piano, orchestra, optimizer, name)
-        return wrapper
+    def get_train_function(self):
+        self.step_flag = 'train'
+        return
 
-    @staticmethod
-    def validation_flag(fun):
-        def wrapper(self, piano, orchestra, name):
-            self.step_flag = 'validate'
-            return fun(self, piano, orchestra, name)
-        return wrapper
+    def get_validation_error(self):
+        self.step_flag = 'validate'
+        return
 
-    @staticmethod
-    def generate_flag(fun):
-        def wrapper(self, piano, orchestra,
-                    generation_length, seed_size,
-                    batch_generation_size,
-                    name):
-            self.step_flag = 'generate'
-            return fun(self, piano, orchestra, generation_length, seed_size, batch_generation_size, name)
-        return wrapper
+    def get_generate_function(self):
+        self.step_flag = 'generate'
+        return
 
     def save_weights(self, save_folder):
         def plot_process(param_shared):
             param = param_shared.get_value()
 
-            temp_csv = save_folder + '/' + param_shared.name + '.csv'
-            np.savetxt(temp_csv, param, delimiter=',')
+            # temp_csv = save_folder + '/' + param_shared.name + '.csv'
+            # np.savetxt(temp_csv, param, delimiter=',')
 
             # Get mean, std and write title
             mean = np.mean(param)
@@ -124,7 +114,29 @@ class Model_lop(object):
             plt.close(fig)
 
             # Plot matrices
-            visualize_mat(param, save_folder, param_shared.name)
+            xdim = param.shape[0]
+            if len(param.shape) == 1:
+                param = param.reshape((xdim,1))
+            ydim = param.shape[1]
+            minparam = param.min()
+            maxparam = param.max()
+            view = param.view(dtype=np.uint8).reshape((xdim, ydim, 4))
+            for i in range(xdim):
+                for j in range(ydim):
+                    value = (param[i][j] - minparam) / (maxparam - minparam)
+                    view[i, j, 0] = int(255 * value)
+                    view[i, j, 1] = int(255 * value)
+                    view[i, j, 2] = int(255 * value)
+                    view[i, j, 3] = 255
+            output_file(save_folder + '/' + param_shared.name + '.html')
+            p = figure(title=param_shared.name, x_range=(0, xdim), y_range=(0, ydim))
+            p.image_rgba(image=[param], x=[0], y=[0], dw=[xdim], dh=[ydim])
+            save(p)
+
+            # D3js plot (heavy...)
+            # temp_csv = save_folder + '/' + param_shared.name + '.csv'
+            # np.savetxt(temp_csv, param, delimiter=',')
+            # visualize_mat(param, save_folder, param_shared.name)
 
         # Plot weights
         for param_shared in self.params:

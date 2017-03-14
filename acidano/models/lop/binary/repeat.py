@@ -59,8 +59,8 @@ class Repeat(Model_lop):
     ###############################
     ##       TRAIN FUNCTION
     ###############################
-    @Model_lop.train_flag
     def get_train_function(self, piano, orchestra, optimizer, name):
+        Model_lop.get_train_function(self)
         def unit(i):
             a = 0
             b = 0
@@ -92,8 +92,8 @@ class Repeat(Model_lop):
         past = orchestra[index-1,:]
         return past
 
-    @Model_lop.validation_flag
     def get_validation_error(self, piano, orchestra, name):
+        Model_lop.get_validation_error(self)
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -111,10 +111,10 @@ class Repeat(Model_lop):
     ###############################
     ##       GENERATION
     ###############################
-    @Model_lop.generate_flag
     def get_generate_function(self, piano, orchestra,
                               generation_length, seed_size, batch_generation_size,
                               name="generate_sequence"):
+        Model_lop.get_generate_function(self)
         def closure(ind):
             # Initialize generation matrice
             _, orchestra_gen = self.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)

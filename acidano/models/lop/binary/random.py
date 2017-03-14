@@ -36,7 +36,7 @@ class Random(Model_lop):
         self.n_piano = dimensions['piano_dim']
 
         # p should set equal to the average number of note on in the database
-        self.p = model_param['p']
+        self.p = 0.5
 
         self.v_truth = T.matrix('v_truth', dtype=theano.config.floatX)
         return
@@ -60,8 +60,8 @@ class Random(Model_lop):
     ###############################
     ##       TRAIN FUNCTION
     ###############################
-    @Model_lop.train_flag
     def get_train_function(self, piano, orchestra, optimizer, name):
+        Model_lop.get_train_function(self)
         def unit(i):
             a = 0
             b = 0
@@ -89,8 +89,8 @@ class Random(Model_lop):
         visible = orchestra[index,:]
         return visible
 
-    @Model_lop.validation_flag
     def get_validation_error(self, piano, orchestra, name):
+        Model_lop.get_validation_error(self)
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -107,10 +107,10 @@ class Random(Model_lop):
     ###############################
     ##       GENERATION
     ###############################
-    @Model_lop.generate_flag
     def get_generate_function(self, piano, orchestra,
                               generation_length, seed_size, batch_generation_size,
                               name="generate_sequence"):
+        Model_lop.get_generate_function(self)
         def closure(ind):
             # Initialize generation matrice
             _, orchestra_gen = self.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)

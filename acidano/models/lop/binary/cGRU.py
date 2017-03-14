@@ -25,11 +25,12 @@ from acidano.utils.measure import accuracy_measure, precision_measure, recall_me
 from acidano.utils.regularization import dropout_function
 
 
-class LSTM(Model_lop):
-    """ LSTM multiple layers with regularization
+class cGRU(Model_lop):
+    """ conditional GRU
     Predictive model,
-        input = piano(t)
+        visible = orchestra(t-1)
         output = orchestra(t)
+        context = piano(t)
         measure = cross-entropy error function
             (output units are binary units (y_j) considered independent : i != j -> y_j indep y_i)
     """
@@ -40,29 +41,31 @@ class LSTM(Model_lop):
                  checksum_database,
                  weights_initialization=None):
 
-        super(LSTM, self).__init__(model_param, dimensions, checksum_database)
+        Model_lop.__init__(self, model_param, dimensions, checksum_database)
 
         # Datas are represented like this:
         #   - visible = concatenation of the data : (num_batch, piano ^ orchestra_dim * temporal_order)
-        self.n_v = dimensions['piano_dim']
+        self.n_v = dimensions['orchestra_dim']
         self.n_o = dimensions['orchestra_dim']
+        self.n_x = dimensions['piano_dim']
 
         # Number of hidden units
         self.n_hs = model_param['n_hidden']
         self.n_layer = len(self.n_hs)
 
-        self.L_vi = {}
-        self.L_hi = {}
-        self.b_i = {}
-        self.L_vc = {}
-        self.L_hc = {}
-        self.b_c = {}
-        self.L_vf = {}
-        self.L_hf = {}
-        self.b_f = {}
-        self.L_vo = {}
-        self.L_ho = {}
-        self.b_o = {}
+        # Weights
+        # Reset gate
+        self.W_vr = {}
+        self.W_hr = {}
+        self.b_r = {}
+        # Update gate
+        self.W_vz = {}
+        self.W_hz = {}
+        self.b_z = {}
+        # Hidden state
+        self.W_vh = {}
+        self.W_hh = {}
+        self.b_h = {}
 
         if weights_initialization is None:
             # Weights
@@ -72,27 +75,28 @@ class LSTM(Model_lop):
                 else:
                     n_htm1 = self.n_hs[layer-1]
                 n_ht = self.n_hs[layer]
-                # input gate
-                self.L_vi[layer] = shared_normal((n_htm1, n_ht), 0.01, name='L_vi'+str(layer))
-                self.L_hi[layer] = shared_normal((n_ht, n_ht), 0.01, name='L_vi'+str(layer))
-                self.b_i[layer] = shared_zeros((n_ht), name='b_i'+str(layer))
-                # Internal cell
-                self.L_vc[layer] = shared_normal((n_htm1, n_ht), 0.01, name='L_vc'+str(layer))
-                self.L_hc[layer] = shared_normal((n_ht, n_ht), 0.01, name='L_hc'+str(layer))
-                self.b_c[layer] = shared_zeros((n_ht), name='b_c'+str(layer))
-                # Forget gate
-                self.L_vf[layer] = shared_normal((n_htm1, n_ht), 0.01, name='L_vf'+str(layer))
-                self.L_hf[layer] = shared_normal((n_ht, n_ht), 0.01, name='L_hf'+str(layer))
-                self.b_f[layer] = shared_zeros((n_ht), name='b_f'+str(layer))
-                # Output
-                # No L_co... as in Theano tuto
-                self.L_vo[layer] = shared_normal((n_htm1, n_ht), 0.01, name='L_vo'+str(layer))
-                self.L_ho[layer] = shared_normal((n_ht, n_ht), 0.01, name='L_ho'+str(layer))
-                self.b_o[layer] = shared_zeros((n_ht), name='b_o'+str(layer))
+                # Reset gate
+                self.W_vr[layer] = shared_normal((n_htm1, n_ht), 0.01, name='W_vr'+str(layer))
+                self.W_hr[layer] = shared_normal((n_ht, n_ht), 0.01, name='W_hr'+str(layer))
+                self.b_r[layer] = shared_zeros((n_ht), name='b_r'+str(layer))
+                # Update cell
+                self.W_vz[layer] = shared_normal((n_htm1, n_ht), 0.01, name='W_vz'+str(layer))
+                self.W_hz[layer] = shared_normal((n_ht, n_ht), 0.01, name='W_hz'+str(layer))
+                self.b_z[layer] = shared_zeros((n_ht), name='b_z'+str(layer))
+                # Hidden gate
+                self.W_vh[layer] = shared_normal((n_htm1, n_ht), 0.01, name='W_vh'+str(layer))
+                self.W_hh[layer] = shared_normal((n_ht, n_ht), 0.01, name='W_hh'Wstr(layer))
+                self.b_h[layer] = shared_zeros((n_ht), name='b_h'+str(layer))
 
-            # Last predictive layer
-            self.W = shared_normal((self.n_hs[-1], self.n_o), 0.01, name='W')
-            self.b = shared_zeros((self.n_o), name='b')
+            # Conditional (only in the last layer)
+            last_n_h = self.n_hs[-1]
+            self.W_xr = shared_normal((self.n_x, last_n_h), 0.01, name='W_xr')
+            self.W_xz = shared_normal((self.n_x, last_n_h), 0.01, name='W_xz')
+            self.W_xh = shared_normal((self.n_x, last_n_h), 0.01, name='W_xh')
+
+            # Output
+            self.W_ho = shared_normal((last_n_h, self.n_o), 0.01, name='W_ho')
+            self.b_o = shared_zeros((self.n_o), name='b_o')
         else:
             # Layer weights
             for layer, n_h_layer in enumerate(self.n_hs):
@@ -116,14 +120,17 @@ class LSTM(Model_lop):
             self.L_ho.values() + self.b_o.values() + [self.W, self.b]
 
         # Variables
-        self.v = T.tensor3('v', dtype=theano.config.floatX)
+        self.v = T.tensor3('v', dtype=theano.config.floatX
         self.o = T.tensor3('o', dtype=theano.config.floatX)
+        self.x = T.tensor3('x', dtype=theano.config.floatX)
         self.o_truth = T.tensor3('o_truth', dtype=theano.config.floatX)
         self.v_gen = T.tensor3('v_gen', dtype=theano.config.floatX)
+        self.x_gen = T.tensor3('x_gen', dtype=theano.config.floatX)
 
         # Test values
         self.v.tag.test_value = np.random.rand(self.batch_size, self.temporal_order, self.n_v).astype(theano.config.floatX)
         self.o.tag.test_value = np.random.rand(self.batch_size, self.temporal_order, self.n_o).astype(theano.config.floatX)
+        self.x.tag.test_value = np.random.rand(self.batch_size, self.temporal_order, self.n_x).astype(theano.config.floatX)
         self.o_truth.tag.test_value = np.random.rand(self.batch_size, self.temporal_order, self.n_o).astype(theano.config.floatX)
         return
 

@@ -267,8 +267,8 @@ class cLstmRbm(LSTM, Model_lop):
     ###############################
     ##       TRAIN FUNCTION
     ###############################
-    @Model_lop.train_flag
     def get_train_function(self, piano, orchestra, optimizer, name):
+        Model_lop.get_train_function(self)
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -303,8 +303,8 @@ class cLstmRbm(LSTM, Model_lop):
     ###############################
     ##       VALIDATION FUNCTION
     ###############################
-    @Model_lop.validation_flag
     def get_validation_error(self, piano, orchestra, name):
+        Model_lop.get_validation_error(self)
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -360,11 +360,11 @@ class cLstmRbm(LSTM, Model_lop):
 
         return u_t, state_t, v_t, updates_inference
 
-    @Model_lop.generate_flag
     def get_generate_function(self, piano, orchestra,
                               generation_length, seed_size,
                               batch_generation_size,
                               name="generate_sequence"):
+        Model_lop.get_generate_function(self)
         # Seed_size is actually fixed by the temporal_order
         seed_size = self.temporal_order
         self.batch_generation_size = batch_generation_size

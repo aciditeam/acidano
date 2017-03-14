@@ -208,8 +208,8 @@ class cRBM(Model_lop):
         visible = orchestra[index,:]
         return visible
 
-    @Model_lop.train_flag
     def get_train_function(self, piano, orchestra, optimizer, name):
+        Model_lop.get_train_function(self)
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -243,8 +243,8 @@ class cRBM(Model_lop):
     ###############################
     ##       VALIDATION FUNCTION
     ##############################
-    @Model_lop.validation_flag
     def get_validation_error(self, piano, orchestra, name):
+        Model_lop.get_validation_error(self)
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -271,10 +271,10 @@ class cRBM(Model_lop):
         p_gen = np.concatenate((present_piano, past_orchestra), axis=1)
         return p_gen
 
-    @Model_lop.generate_flag
     def get_generate_function(self, piano, orchestra,
                               generation_length, seed_size, batch_generation_size,
                               name="generate_sequence"):
+        Model_lop.get_generate_function(self)
         # Seed_size is actually fixed by the temporal_order
         seed_size = self.temporal_order - 1
 
