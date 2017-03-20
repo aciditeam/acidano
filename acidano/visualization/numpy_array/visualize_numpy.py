@@ -26,3 +26,12 @@ def visualize_mat(pr, path, file_name_no_extension, time_indices=None):
     np.savetxt(temp_csv, pr, delimiter=',')
     dump_to_csv(temp_csv, temp_csv)
     write_numpy_array_html(path + '/' + file_name_no_extension + ".html", file_name_no_extension, 'rainbow')
+
+def visualize_mat_proba(pr, path, file_name_no_extension, time_indices=None):
+    if time_indices:
+        start_time, end_time = time_indices
+        pr = pr[start_time:end_time,:]
+    temp_csv = path + '/' + file_name_no_extension + '.csv'
+    np.savetxt(temp_csv, pr, delimiter=',')
+    dump_to_csv(temp_csv, temp_csv)
+    write_numpy_array_html(path + '/' + file_name_no_extension + ".html", file_name_no_extension, 'rainbow', (0,1))

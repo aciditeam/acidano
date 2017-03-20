@@ -5,7 +5,7 @@ import os
 import re
 
 
-def write_numpy_array_html(filename, dataname, colour_palette='blue_gradient', d3js_source_path=None):
+def write_numpy_array_html(filename, dataname, colour_palette='blue_gradient', min_max=None, d3js_source_path=None):
     if d3js_source_path is None:
         user_paths = os.environ['PYTHONPATH'].split(os.pathsep)
         for user_path in user_paths:
@@ -20,6 +20,19 @@ def write_numpy_array_html(filename, dataname, colour_palette='blue_gradient', d
         colour_list = "['#2c7bb6', '#00a6ca','#00ccbc','#90eb9d','#ffff8c','#f9d057','#f29e2e','#e76818','#d7191c']"
     else:
         raise NameError('Undefined colour palette')
+
+    # Custom min and max Z
+    if min_max:
+        minZ, maxZ = min_max
+        minZ = str(minZ)
+        maxZ = str(maxZ)
+    else:
+        maxZ = """d3.max(data, function(d) {
+            return d.z;
+        })"""
+        minZ = """d3.min(data, function(d) {
+            return d.z;
+        })"""
 
     text = """<!DOCTYPE html>
 <head>
@@ -135,12 +148,8 @@ def write_numpy_array_html(filename, dataname, colour_palette='blue_gradient', d
         var minY = d3.min(data, function(d) {
             return d.y;
         });
-        var maxZ = d3.max(data, function(d) {
-            return d.z;
-        });
-        var minZ = d3.min(data, function(d) {
-            return d.z;
-        });
+        var maxZ = """ + maxZ + """;
+        var minZ = """ + minZ + """;
         var deltaX = maxX - minX + 1
         var deltaY = maxY - minY + 1
         var deltaZ = maxZ - minZ + 1
