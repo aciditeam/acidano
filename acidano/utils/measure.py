@@ -5,6 +5,9 @@ import theano.tensor as T
 import numpy as np
 
 
+####################################################################
+####################################################################
+# Binaries measures
 def accuracy_measure(true_frame, pred_frame):
     # true_frame must be a matrix of binaries vectors
     # Sum along the last dimension (usually pitch or pixel intensity dimension)
@@ -60,31 +63,30 @@ def precision_measure(true_frame, pred_frame):
     precision_measure = T.switch(T.eq(quotient, 0), 0, true_positive / quotient)
 
     return precision_measure
+####################################################################
+####################################################################
 
+####################################################################
+####################################################################
+# Real
+def accuracy_measure_not_shared_continuous(true_frame, pred_frame):
+    threshold = 0.05
+    diff_abs = np.absolute(true_frame - pred_frame)
+    diff_thresh = np.where(diff_abs < threshold, 1, 0)
+    binary_truth = np.where(pred_frame > 0, 1, 0)
+    tp = np.sum(diff_thresh * binary_truth, axis=-1)
+    import pdb; pdb.set_trace()
+    false = np.sum((1 - diff_thresh), axis=-1)
 
-def accuracy_measure_categorical(true_frame, pred_frame):
-    axis = true_frame.ndim - 1
-    # true_frame must be a binary vector
-    true_positive = T.sum(pred_frame * true_frame, axis=axis)
-    return true_positive
+    quotient = tp + false
 
+    accuracy_measure =  np.where(np.equal(quotient, 0), 0, np.true_divide(tp, quotient))
 
-def accuracy_measure_not_shared_categorical(true_frame, pred_frame):
-    axis = true_frame.ndim - 1
-    # true_frame must be a binary vector
-    true_positive = T.sum(pred_frame * true_frame, axis=axis)
-    return true_positive
+    return accuracy_measure
+####################################################################
+####################################################################
 
-
-def recall_measure_categorical(true_frame, pred_frame):
-    axis = true_frame.ndim - 1
-    # true_frame must be a binary vector
-    true_positive = T.sum(pred_frame * true_frame, axis=axis)
-    return true_positive
-
-
-def precision_measure_categorical(true_frame, pred_frame):
-    axis = true_frame.ndim - 1
-    # true_frame must be a binary vector
-    true_positive = T.sum(pred_frame * true_frame, axis=axis)
-    return true_positive
+if __name__ == '__main__':
+    t = np.asarray([[0.6,0.3,0.2,0], [0.6,0.3,0.2,0]])
+    p = np.asarray([[0.64,0.2,0.4,0], [0.6,0.3,0.2,0]])
+    accuracy_measure_not_shared_real(t,p)

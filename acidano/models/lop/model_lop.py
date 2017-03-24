@@ -58,7 +58,7 @@ class Model_lop(object):
         ]),
             'weight_decay_coeff': hp.choice('weight_decay_coeff', [
                 0.0,
-                hp.uniform('a', 1e-4, 1e-2)
+                hp.uniform('a', 1e-4, 1e-4)
             ])
         }
 
@@ -90,7 +90,10 @@ class Model_lop(object):
             # Get mean, std and write title
             mean = np.mean(param)
             std = np.mean(param)
-            title = param_shared.name + " mean = " + str(mean) + " std = " + str(std)
+            min_v = np.min(param)
+            max_v = np.max(param)
+            title = param_shared.name + " mean = " + str(mean) + " std = " + str(std) +\
+                "\nmin = " + str(min_v) + " max = " + str(max_v)
 
             # Plot histogram
             fig = plt.figure()
@@ -99,8 +102,8 @@ class Model_lop(object):
             ax = fig.add_subplot(111)
             fig.subplots_adjust(top=0.85)
 
-            ax.set_xlabel('nb_occurence')
-            ax.set_ylabel('value')
+            ax.set_xlabel('value')
+            ax.set_ylabel('nb_occurence')
 
             param_ravel = param.ravel()
             # Check for NaN values
@@ -114,24 +117,24 @@ class Model_lop(object):
             plt.close(fig)
 
             # Plot matrices
-            xdim = param.shape[0]
-            if len(param.shape) == 1:
-                param = param.reshape((xdim,1))
-            ydim = param.shape[1]
-            minparam = param.min()
-            maxparam = param.max()
-            view = param.view(dtype=np.uint8).reshape((xdim, ydim, 4))
-            for i in range(xdim):
-                for j in range(ydim):
-                    value = (param[i][j] - minparam) / (maxparam - minparam)
-                    view[i, j, 0] = int(255 * value)
-                    view[i, j, 1] = int(255 * value)
-                    view[i, j, 2] = int(255 * value)
-                    view[i, j, 3] = 255
-            output_file(save_folder + '/' + param_shared.name + '.html')
-            p = figure(title=param_shared.name, x_range=(0, xdim), y_range=(0, ydim))
-            p.image_rgba(image=[param], x=[0], y=[0], dw=[xdim], dh=[ydim])
-            save(p)
+            # xdim = param.shape[0]
+            # if len(param.shape) == 1:
+            #     param = param.reshape((xdim,1))
+            # ydim = param.shape[1]
+            # minparam = param.min()
+            # maxparam = param.max()
+            # view = param.view(dtype=np.uint8).reshape((xdim, ydim, 4))
+            # for i in range(xdim):
+            #     for j in range(ydim):
+            #         value = (param[i][j] - minparam) / (maxparam - minparam)
+            #         view[i, j, 0] = int(255 * value)
+            #         view[i, j, 1] = int(255 * value)
+            #         view[i, j, 2] = int(255 * value)
+            #         view[i, j, 3] = 255
+            # output_file(save_folder + '/' + param_shared.name + '.html')
+            # p = figure(title=param_shared.name, x_range=(0, xdim), y_range=(0, ydim))
+            # p.image_rgba(image=[param.T], x=[0], y=[0], dw=[xdim], dh=[ydim])
+            # save(p)
 
             # D3js plot (heavy...)
             # temp_csv = save_folder + '/' + param_shared.name + '.csv'

@@ -12,9 +12,8 @@ from math import log
 
 
 class Model_lop_keras(object):
-    """
-    Template class for the lop keras models
-    """
+    """Template class for the lop keras models."""
+
     def __init__(self, model_param, dimensions):
         # Training parameters
         self.batch_size = model_param['batch_size']
@@ -39,7 +38,7 @@ class Model_lop_keras(object):
         ]),
             'weight_decay_coeff': hp.choice('weight_decay_coeff', [
                 0.0,
-                hp.uniform('a', 1e-4, 1e-2)
+                hp.uniform('a', 1e-4, 1e-4)
             ])
         }
         space_training.update(space_regularization)

@@ -21,7 +21,7 @@ from acidano.utils.init import shared_normal, shared_zeros
 from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure
 
 
-class FGcRBM(Model_lop):
+class FGcRBM_no_bv(Model_lop):
     """Factored Gated Conditional Restricted Boltzmann Machine (CRBM)"""
     def __init__(self,
                  model_param,
@@ -49,7 +49,6 @@ class FGcRBM(Model_lop):
             self.Wvf = shared_normal((self.n_v, self.n_f), 0.01, self.rng_np, name='Wvf')
             self.Whf = shared_normal((self.n_h, self.n_f), 0.01, self.rng_np, name='Whf')
             self.Wzf = shared_normal((self.n_z, self.n_f), 0.01, self.rng_np, name='Wzf')
-            self.bv = shared_zeros((self.n_v), name='bv')
             self.bh = shared_zeros((self.n_h), name='bh')
             self.Apf = shared_normal((self.n_p, self.n_f), 0.01, self.rng_np, name='Apf')
             self.Avf = shared_normal((self.n_v, self.n_f), 0.01, self.rng_np, name='Avf')
@@ -61,7 +60,6 @@ class FGcRBM(Model_lop):
             self.Wvf = weights_initialization['Wvf']
             self.Whf = weights_initialization['Whf']
             self.Wzf = weights_initialization['Wzf']
-            self.bv = weights_initialization['bv']
             self.bh = weights_initialization['bh']
             self.Apf = weights_initialization['Apf']
             self.Avf = weights_initialization['Avf']
@@ -70,7 +68,7 @@ class FGcRBM(Model_lop):
             self.Bhf = weights_initialization['Bhf']
             self.Bzf = weights_initialization['Bzf']
 
-        self.params = [self.Wvf,self.Whf,self.Wzf,self.bv,self.bh,self.Apf,self.Avf,self.Azf,self.Bpf,self.Bhf,self.Bzf]
+        self.params = [self.Wvf,self.Whf,self.Wzf,self.bh,self.Apf,self.Avf,self.Azf,self.Bpf,self.Bhf,self.Bzf]
 
         # initialize input layer for standalone CRBM or layer0 of CDBN
         # v = orchestra(t)
@@ -111,7 +109,7 @@ class FGcRBM(Model_lop):
 
     @staticmethod
     def name():
-        return "FGcRBM"
+        return "FGcRBM_no_bv"
 
     ###############################
     ## CONDITIONAL PROBABILITIES
@@ -143,7 +141,7 @@ class FGcRBM(Model_lop):
         # Latent to factor : size (1,f)
         z_f = T.dot(z, self.Azf)
         #
-        dyn_bias = self.bv + T.dot((p_f * z_f), self.Avf.T)
+        dyn_bias = T.dot((p_f * z_f), self.Avf.T)
         return dyn_bias
 
     def get_bh_dyn(self, p, z):

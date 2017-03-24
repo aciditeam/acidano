@@ -150,14 +150,14 @@ class cRBM(Model_lop):
         v_sample = v_chain[-1]
         mean_v = mean_chain[-1]
 
-        return v_sample, mean_v, bv_dyn, bh_dyn, updates_rbm
+        return v_sample, mean_v, bv_dyn, bh_dyn, updates_rbm, mean_chain
 
     ###############################
     ##       COST
     ###############################
     def cost_updates(self, optimizer):
         # Get the negative particle
-        v_sample, mean_v, bv_dyn, bh_dyn, updates_train = self.get_negative_particle(self.v, self.p)
+        v_sample, mean_v, bv_dyn, bh_dyn, updates_train, mean_chain = self.get_negative_particle(self.v, self.p)
 
         # Compute the free-energy for positive and negative particles
         fe_positive = self.free_energy(self.v, bv_dyn, bh_dyn)
@@ -177,7 +177,7 @@ class cRBM(Model_lop):
         grads = T.grad(cost, self.params, consider_constant=[v_sample])
         updates_train = optimizer.get_updates(self.params, grads, updates_train)
 
-        return cost, monitor, updates_train
+        return cost, monitor, updates_train, mean_chain
 
     ###############################
     ##       TRAIN FUNCTION
@@ -214,10 +214,10 @@ class cRBM(Model_lop):
         index = T.ivector()
 
         # get the cost and the gradient corresponding to one step of CD-15
-        cost, monitor, updates = self.cost_updates(optimizer)
+        cost, monitor, updates, mean_chain = self.cost_updates(optimizer)
 
         return theano.function(inputs=[index],
-                               outputs=[cost, monitor],
+                               outputs=[cost, monitor, mean_chain],
                                updates=updates,
                                givens={self.v: self.build_visible(orchestra, index),
                                        self.p: self.build_past(piano, orchestra, index, self.batch_size, self.temporal_order)},
@@ -230,7 +230,7 @@ class cRBM(Model_lop):
     def prediction_measure(self):
         self.v = self.rng.uniform((self.batch_size, self.n_v), 0, 1, dtype=theano.config.floatX)
         # Generate the last frame for the sequence v
-        v_sample, _, _, _, updates_valid = self.get_negative_particle(self.v, self.p)
+        v_sample, _, _, _, updates_valid, mean_chain = self.get_negative_particle(self.v, self.p)
         predicted_frame = v_sample
         # Get the ground truth
         true_frame = self.v_truth
@@ -282,7 +282,7 @@ class cRBM(Model_lop):
         self.p_gen.tag.test_value = np.random.rand(batch_generation_size, self.n_p).astype(theano.config.floatX)
 
         # Graph for the negative particle
-        v_sample, _, _, _, updates_next_sample = \
+        v_sample, _, _, _, updates_next_sample, mean_chain = \
             self.get_negative_particle(self.v_gen, self.p_gen)
 
         # Compile a function to get the next visible sample
