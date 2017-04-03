@@ -40,7 +40,7 @@ def gaussian_likelihood_diagonal_variance(t, mu, sig, dim):
     sig_clip = T.clip(sig, 1e-40, 1e40)
 
     # Since the variance matrix is diagonal, normalization term is easier to compute,
-    # and calculus overflow can easily be prevente by first summing by 2*pi and taking square
+    # and calculus overflow can easily be prevented by first summing by 2*pi and taking square
     sig_time_2pi = T.sqrt(sig_clip * 2 * math.pi)
 
     #######################
@@ -55,6 +55,22 @@ def gaussian_likelihood_diagonal_variance(t, mu, sig, dim):
     exp_term = (T.exp(- 0.5 * (t-mu) * (t-mu) / sig_clip).sum(axis=0))
     pdf = exp_term / normalization_coeff
     return pdf
+
+
+def gaussian_likelihood_diagonal_variance_discard_normalization(t, mu, sig, dim):
+    """
+    Gaussian Likelihood along first dimension
+    Parameters
+    ----------
+    t   : TensorVariable
+    mu  : FullyConnected (Linear)
+    sig : FullyConnected (Softplus)
+    dim : First dimension of the target vector t
+    """
+    # Once again, fact that sig is diagonal allows for simplifications :
+    # term by term division instead of inverse matrix multiplication
+    exp_term = (T.exp(- 0.5 * (t-mu) * (t-mu) / sig).sum(axis=0))
+    return exp_term
 
 
 def gaussian_likelihood_scalar(t, mu, sig):

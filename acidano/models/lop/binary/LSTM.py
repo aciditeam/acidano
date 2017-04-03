@@ -26,7 +26,8 @@ from acidano.utils.regularization import dropout_function
 
 
 class LSTM(Model_lop):
-    """ LSTM multiple layers with regularization
+    """LSTM multiple layers with regularization.
+
     Predictive model,
         input = piano(t)
         output = orchestra(t)
@@ -128,8 +129,8 @@ class LSTM(Model_lop):
         return
 
     ###############################
-    ##       STATIC METHODS
-    ##       FOR METADATA AND HPARAMS
+    #       STATIC METHODS
+    #       FOR METADATA AND HPARAMS
     ###############################
     @staticmethod
     def get_hp_space():
@@ -152,7 +153,7 @@ class LSTM(Model_lop):
         return "LSTM"
 
     ###############################
-    ##  FORWARD PASS
+    #  FORWARD PASS
     ###############################
     def corruption(self, h_lm1_t, n_lm1, axis):
         # Get input dimension (dieu que c'est moche)
@@ -218,7 +219,7 @@ class LSTM(Model_lop):
         last_hidden = input_layer[self.n_layer]
         # (batch, time, pitch)
         if last_hidden.ndim == 3:
-            last_hidden = last_hidden.dimshuffle((1,0,2))
+            last_hidden = last_hidden.dimshuffle((1, 0, 2))
 
         # Activation probability
         o_mean = propup_sigmoid(last_hidden, self.W, self.b)
@@ -229,11 +230,11 @@ class LSTM(Model_lop):
         return o_mean, o_sample, updates
 
     ###############################
-    ##       COST
+    #       COST
     ###############################
     def cost_updates(self, optimizer):
         # Time needs to be the first dimension
-        v_loop = self.v.dimshuffle((1,0,2))
+        v_loop = self.v.dimshuffle((1, 0, 2))
 
         # Infer Orchestra sequence
         self.pred, _, updates_train = self.forward_pass(v_loop, self.batch_size)
@@ -241,7 +242,7 @@ class LSTM(Model_lop):
         # Compute error function
         cost = T.nnet.binary_crossentropy(self.pred, self.o)
         # Sum over time and pitch axis
-        cost = cost.sum(axis=(1,2))
+        cost = cost.sum(axis=(1, 2))
         # Mean along batch dimension
         cost = T.mean(cost)
 

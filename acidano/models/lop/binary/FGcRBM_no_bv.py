@@ -5,7 +5,6 @@
 from acidano.models.lop.model_lop import Model_lop
 
 # Hyperopt
-from hyperopt import hp
 from acidano.utils import hopt_wrapper
 from math import log
 
@@ -22,7 +21,8 @@ from acidano.utils.measure import accuracy_measure, precision_measure, recall_me
 
 
 class FGcRBM_no_bv(Model_lop):
-    """Factored Gated Conditional Restricted Boltzmann Machine (CRBM)"""
+    """Factored Gated Conditional Restricted Boltzmann Machine (CRBM)."""
+
     def __init__(self,
                  model_param,
                  dimensions,
@@ -68,7 +68,7 @@ class FGcRBM_no_bv(Model_lop):
             self.Bhf = weights_initialization['Bhf']
             self.Bzf = weights_initialization['Bzf']
 
-        self.params = [self.Wvf,self.Whf,self.Wzf,self.bh,self.Apf,self.Avf,self.Azf,self.Bpf,self.Bhf,self.Bzf]
+        self.params = [self.Wvf, self.Whf, self.Wzf, self.bh, self.Apf, self.Avf, self.Azf, self.Bpf, self.Bhf, self.Bzf]
 
         # initialize input layer for standalone CRBM or layer0 of CDBN
         # v = orchestra(t)
@@ -90,8 +90,8 @@ class FGcRBM_no_bv(Model_lop):
         return
 
     ###############################
-    ##       STATIC METHODS
-    ##       FOR METADATA AND HPARAMS
+    #       STATIC METHODS
+    #       FOR METADATA AND HPARAMS
     ###############################
 
     @staticmethod
@@ -112,7 +112,7 @@ class FGcRBM_no_bv(Model_lop):
         return "FGcRBM_no_bv"
 
     ###############################
-    ## CONDITIONAL PROBABILITIES
+    #  CONDITIONAL PROBABILITIES
     ###############################
     def get_f_h(self, v, z):
         # Visible to factor : size (1,f)
@@ -133,7 +133,7 @@ class FGcRBM_no_bv(Model_lop):
         return f_v
 
     ###############################
-    ## DYNAMIC BIASES
+    #  DYNAMIC BIASES
     ###############################
     def get_bv_dyn(self, p, z):
         # Context to factor : size (1,f)
@@ -154,7 +154,7 @@ class FGcRBM_no_bv(Model_lop):
         return dyn_bias
 
     ###############################
-    ## NEGATIVE PARTICLE
+    #  NEGATIVE PARTICLE
     ###############################
     def free_energy(self, v, z, bv, bh):
         # Get last index
@@ -220,7 +220,7 @@ class FGcRBM_no_bv(Model_lop):
         return v_sample, mean_v, bv_dyn, bh_dyn, updates_rbm, mean_chain
 
     ###############################
-    ##       COST
+    #        COST
     ###############################
     def cost_updates(self, optimizer):
         # Get the negative particle
@@ -248,27 +248,27 @@ class FGcRBM_no_bv(Model_lop):
         return cost, monitor, updates_train, mean_chain
 
     ###############################
-    ##       TRAIN FUNCTION
+    #        TRAIN FUNCTION
     ###############################
     def build_past(self, orchestra, index):
         # [T-1, T-2, ..., 0]
-        decreasing_time = theano.shared(np.arange(self.temporal_order-1,0,-1, dtype=np.int32))
+        decreasing_time = theano.shared(np.arange(self.temporal_order-1, 0, -1, dtype=np.int32))
         #
-        temporal_shift = T.tile(decreasing_time, (self.batch_size,1))
+        temporal_shift = T.tile(decreasing_time, (self.batch_size, 1))
         # Reshape
         index_full = index.reshape((self.batch_size, 1)) - temporal_shift
         # Slicing
-        past = orchestra[index_full,:]\
+        past = orchestra[index_full, :]\
             .ravel()\
             .reshape((self.batch_size, (self.temporal_order-1)*self.n_v))
         return past
 
     def build_latent(self, piano, index):
-        visible = piano[index,:]
+        visible = piano[index, :]
         return visible
 
     def build_visible(self, orchestra, index):
-        visible = orchestra[index,:]
+        visible = orchestra[index, :]
         return visible
 
     def get_train_function(self, piano, orchestra, optimizer, name):
@@ -289,7 +289,7 @@ class FGcRBM_no_bv(Model_lop):
                                )
 
     ###############################
-    ##       PREDICTION
+    #        PREDICTION
     ###############################
     def prediction_measure(self):
         self.v = self.rng.uniform((self.batch_size, self.n_v), 0, 1, dtype=theano.config.floatX)
@@ -302,20 +302,20 @@ class FGcRBM_no_bv(Model_lop):
         precision = precision_measure(true_frame, predicted_frame)
         recall = recall_measure(true_frame, predicted_frame)
         accuracy = accuracy_measure(true_frame, predicted_frame)
-        return precision, recall, accuracy, updates_valid
+        return precision, recall, accuracy, predicted_frame, true_frame, updates_valid
 
     ###############################
-    ##       VALIDATION FUNCTION
+    #        VALIDATION FUNCTION
     ##############################
     def get_validation_error(self, piano, orchestra, name):
         Model_lop.get_validation_error(self)
         # index to a [mini]batch : int32
         index = T.ivector()
 
-        precision, recall, accuracy, updates_valid = self.prediction_measure()
+        precision, recall, accuracy, predicted_frame, true_frame, updates_valid = self.prediction_measure()
 
         return theano.function(inputs=[index],
-                               outputs=[precision, recall, accuracy],
+                               outputs=[precision, recall, accuracy, predicted_frame, true_frame],
                                updates=updates_valid,
                                givens={self.p: self.build_past(orchestra, index),
                                        self.z: self.build_latent(piano, index),
@@ -324,16 +324,16 @@ class FGcRBM_no_bv(Model_lop):
                                )
 
     ###############################
-    ##       GENERATION
+    #        GENERATION
     ###############################
     def build_p_generation(self, orchestra_gen, index, batch_size, length_seq):
-        past_orchestra = orchestra_gen[:,index-self.temporal_order+1:index,:]\
+        past_orchestra = orchestra_gen[:, index-self.temporal_order+1:index, :]\
             .ravel()\
             .reshape((batch_size, self.n_p))
         return past_orchestra
 
     def build_z_generation(self, piano_gen, index):
-        present_piano = piano_gen[:,index,:]
+        present_piano = piano_gen[:, index, :]
         return present_piano
 
     def get_generate_function(self, piano, orchestra,
@@ -373,7 +373,7 @@ class FGcRBM_no_bv(Model_lop):
                 # Get the next sample
                 v_t = (np.asarray(next_sample(v_gen, p_gen, z_gen))[0]).astype(theano.config.floatX)
                 # Add this visible sample to the generated orchestra
-                orchestra_gen[:,index,:] = v_t
+                orchestra_gen[:, index, :] = v_t
 
             return (orchestra_gen,)
 

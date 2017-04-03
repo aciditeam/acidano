@@ -23,6 +23,7 @@ from math import log
 class Model_lop(object):
     """
     Template class for the lop models.
+
     Contains plot methods
     """
 
@@ -66,7 +67,7 @@ class Model_lop(object):
         return space_training
 
     ###############################
-    ##  Set flags for the different steps
+    #  Set flags for the different steps
     ###############################
     def get_train_function(self):
         self.step_flag = 'train'
@@ -116,6 +117,11 @@ class Model_lop(object):
             plt.savefig(save_folder + '/' + param_shared.name + '.pdf')
             plt.close(fig)
 
+            # D3js plot (heavy...)
+            temp_csv = save_folder + '/' + param_shared.name + '.csv'
+            np.savetxt(temp_csv, param, delimiter=',')
+            visualize_mat(param, save_folder, param_shared.name)
+
             # Plot matrices
             # xdim = param.shape[0]
             # if len(param.shape) == 1:
@@ -136,11 +142,6 @@ class Model_lop(object):
             # p.image_rgba(image=[param.T], x=[0], y=[0], dw=[xdim], dh=[ydim])
             # save(p)
 
-            # D3js plot (heavy...)
-            # temp_csv = save_folder + '/' + param_shared.name + '.csv'
-            # np.savetxt(temp_csv, param, delimiter=',')
-            # visualize_mat(param, save_folder, param_shared.name)
-
         # Plot weights
         for param_shared in self.params:
             plot_process(param_shared)
@@ -152,14 +153,14 @@ class Model_lop(object):
         return ret
 
     ###############################
-    ##       Building matrices
+    #       Building matrices
     ###############################
     ######
-    ## Sequential models
+    # Sequential models
     ######
     def build_sequence(self, pr, index, batch_size, seq_length, last_dim):
         # [T-1, T-2, ..., 0]
-        decreasing_time = theano.shared(np.arange(seq_length-1,-1,-1, dtype=np.int32))
+        decreasing_time = theano.shared(np.arange(seq_length-1, -1, -1, dtype=np.int32))
         # Temporal_shift =
         #
         #        [i0-T+1   ; i1-T+1; i2-T+1 ; ... ; iN-T+1;
@@ -170,31 +171,31 @@ class Model_lop(object):
         #   with T = temporal_order
         #        N = pitch_order
         #
-        temporal_shift = T.tile(decreasing_time, (batch_size,1))
+        temporal_shift = T.tile(decreasing_time, (batch_size, 1))
         # Reshape
         index_full = index.reshape((batch_size, 1)) - temporal_shift
         # Slicing
-        pr = pr[index_full.ravel(),:]
+        pr = pr[index_full.ravel(), :]
         # Reshape
         return T.reshape(pr, (batch_size, seq_length, last_dim))
 
     ######
-    ## Those functions are used for generating sequences
-    ## with originally non-sequential models
-    ## such as RBM, cRBM, FGcRBM...
+    # Those functions are used for generating sequences
+    # with originally non-sequential models
+    # such as RBM, cRBM, FGcRBM...
     ######
     def build_seed(self, pr, index, batch_size, length_seq):
         n_dim = len(pr.shape)
         last_dim = pr.shape[n_dim-1]
         # [T-1, T-2, ..., 0]
-        decreasing_time = np.arange(length_seq-1,-1,-1, dtype=np.int32)
+        decreasing_time = np.arange(length_seq-1, -1, -1, dtype=np.int32)
         #
-        temporal_shift = np.tile(decreasing_time, (batch_size,1))
+        temporal_shift = np.tile(decreasing_time, (batch_size, 1))
         # Reshape
         index_broadcast = np.expand_dims(index, axis=1)
         index_full = index_broadcast - temporal_shift
         # Slicing
-        seed_pr = pr[index_full,:]\
+        seed_pr = pr[index_full, :]\
             .ravel()\
             .reshape((batch_size, length_seq, last_dim))
         return seed_pr

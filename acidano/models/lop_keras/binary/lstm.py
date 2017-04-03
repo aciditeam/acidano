@@ -10,7 +10,7 @@ from math import log
 
 # Keras
 import keras
-from keras.layers import Input, LSTM, Dense
+from keras.layers import Input, LSTM, Dense, GRU
 from keras.models import Model
 
 
@@ -43,31 +43,35 @@ class Lstm(Model_lop_keras):
     def build_model(self):
         # Main input is a sequence of orchestra vectors
         main_input = Input(shape=(self.temporal_order, self.orch_dim), name='orch_seq')
-        # Stack lstm
-        if self.n_hs:
-            x = LSTM(self.n_hs[0], return_sequences=True, input_shape=(self.temporal_order, self.orch_dim),
-                     dropout=self.dropout_probability,
-                     kernel_regularizer=keras.regularizers.l2(self.weight_decay_coeff),
-                     bias_regularizer=keras.regularizers.l2(self.weight_decay_coeff))(main_input)
-            for l in range(1, len(self.n_hs)):
-                x = LSTM(self.n_hs[l], return_sequences=True,
-                         dropout=self.dropout_probability,
-                         kernel_regularizer=keras.regularizers.l2(self.weight_decay_coeff),
-                         bias_regularizer=keras.regularizers.l2(self.weight_decay_coeff))(x)
-            # Seems logic to me that end of lstm has the same size as piano piano-roll
-            lstm_out = LSTM(self.piano_dim,
-                            dropout=self.dropout_probability,
-                            kernel_regularizer=keras.regularizers.l2(self.weight_decay_coeff),
-                            bias_regularizer=keras.regularizers.l2(self.weight_decay_coeff))(x)
+        #####################
+        # stacked LSTMs
+        # First layer
+        if len(self.n_hs) > 1:
+            return_sequences = True
         else:
-            lstm_out = LSTM(self.piano_dim, input_shape=(self.temporal_order, self.orch_dim),
-                            dropout=self.dropout_probability,
-                            kernel_regularizer=keras.regularizers.l2(self.weight_decay_coeff),
-                            bias_regularizer=keras.regularizers.l2(self.weight_decay_coeff))(main_input)
+            return_sequences = False
+        x = GRU(self.n_hs[0], return_sequences=return_sequences, input_shape=(self.temporal_order, self.orch_dim),
+                dropout=self.dropout_probability,
+                kernel_regularizer=keras.regularizers.l2(self.weight_decay_coeff),
+                bias_regularizer=keras.regularizers.l2(self.weight_decay_coeff))(main_input)
+        if len(self.n_hs) > 1:
+            # Intermediates layers
+            for layer_ind in range(1, len(self.n_hs)):
+                # Last layer ?
+                if layer_ind == len(self.n_hs)-1:
+                    return_sequences = False
+                else:
+                    return_sequences = True
+                x = GRU(self.n_hs[layer_ind], return_sequences=return_sequences,
+                        dropout=self.dropout_probability,
+                        kernel_regularizer=keras.regularizers.l2(self.weight_decay_coeff),
+                        bias_regularizer=keras.regularizers.l2(self.weight_decay_coeff))(x)
+        lstm_out = x
+        #####################
         # Auxiliary input
         auxiliary_input = Input(shape=(self.piano_dim,), name='piano_t')
         # Concatenate
-        x = keras.layers.concatenate([lstm_out, auxiliary_input], axis=1)
+        top_input = keras.layers.concatenate([lstm_out, auxiliary_input], axis=1)
         # Dense layers on top
         if self.binary:
             activation_top = 'sigmoid'
@@ -75,15 +79,11 @@ class Lstm(Model_lop_keras):
             activation_top = 'relu'
         orch_prediction = Dense(self.orch_dim, activation=activation_top, name='orch_pred',
                                 kernel_regularizer=keras.regularizers.l2(self.weight_decay_coeff),
-                                bias_regularizer=keras.regularizers.l2(self.weight_decay_coeff))(x)
+                                bias_regularizer=keras.regularizers.l2(self.weight_decay_coeff))(top_input)
         model = Model(inputs=[main_input, auxiliary_input], outputs=orch_prediction)
         # Instanciate the model
         self.model = model
         return
-
-    def set_model(self, model):
-        # Used to re-instanciate an already trained model
-        self.model = model
 
     def fit(self, orch_past, orch_t, piano_past, piano_t):
         return (self.model).fit(x={'orch_seq': orch_past, 'piano_t': piano_t},
@@ -95,3 +95,14 @@ class Lstm(Model_lop_keras):
     def validate(self, orch_past, orch_t, piano_past, piano_t):
         return (self.model).predict(x={'orch_seq': orch_past, 'piano_t': piano_t},
                                     batch_size=self.batch_size)
+
+    @staticmethod
+    def get_static_config():
+        model_space = {}
+        model_space['batch_size'] = 200
+        model_space['temporal_order'] = 10
+        model_space['dropout_probability'] = 0
+        model_space['weight_decay_coeff'] = 0
+        # Last layer could be of size piano = 93
+        model_space['n_hidden'] = [500, 500, 93]
+        return model_space

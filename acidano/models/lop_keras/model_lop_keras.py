@@ -5,7 +5,6 @@
 # Model is not part of the object, since we want to save it in a different adapted format
 # Hence the object only conatins "meta information", not the model itself
 
-# Plot lib
 from acidano.utils import hopt_wrapper
 from hyperopt import hp
 from math import log
