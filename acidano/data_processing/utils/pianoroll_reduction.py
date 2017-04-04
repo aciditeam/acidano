@@ -50,8 +50,9 @@ def remove_unmatched_silence(pr0, pr1):
 
     pr0_clean = keep_clean(pr0, ind_clean)
     pr1_clean = keep_clean(pr1, ind_clean)
+    duration = len(ind_clean)
 
-    return pr0_clean, pr1_clean
+    return pr0_clean, pr1_clean, duration
 
 
 def reconstruct_full_pr(pr_reduced, mapping_reduced):
