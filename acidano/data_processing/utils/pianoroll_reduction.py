@@ -2,6 +2,7 @@
 # -*- coding: utf8 -*-
 
 import numpy as np
+from pianoroll_processing import sum_along_instru_dim
 
 
 def remove_unused_pitch(pr, mapping):
@@ -33,6 +34,24 @@ def remove_unused_pitch(pr, mapping):
 
             start_index = end_index
     return pr_reduced, mapping_reduced
+
+
+def remove_unmatched_silence(pr0, pr1):
+    # Detect problems
+    flat_0 = sum_along_instru_dim(pr0).sum(axis=1)
+    flat_1 = sum_along_instru_dim(pr1).sum(axis=1)
+    ind_clean = np.where(np.logical_not((flat_0 == 0) ^ (flat_1 == 0)))[0]
+
+    def keep_clean(pr, ind_clean):
+        pr_out = {}
+        for k, v in pr.iteritems():
+            pr_out[k] = v[ind_clean]
+        return pr_out
+
+    pr0_clean = keep_clean(pr0, ind_clean)
+    pr1_clean = keep_clean(pr1, ind_clean)
+
+    return pr0_clean, pr1_clean
 
 
 def reconstruct_full_pr(pr_reduced, mapping_reduced):
