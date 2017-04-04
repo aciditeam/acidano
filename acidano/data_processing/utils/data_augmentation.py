@@ -4,6 +4,7 @@
 import numpy as np
 import acidano.data_processing.utils.pianoroll_processing as pianoroll_processing
 
+
 # Data augmentation
 def pitch_transposition(pr, pitch_shift):
     # pr is a dictionary pianoroll, before mapping to instruments
@@ -14,7 +15,7 @@ def pitch_transposition(pr, pitch_shift):
     N = pianoroll_processing.get_pitch_dim(pr)
     pr_shifted = {}
     for k, normal in pr.iteritems():
-        shift = np.zeros((T,N))
+        shift = np.zeros((T, N))
         if pitch_shift > 0:
             shift[:, pitch_shift:] = normal[:, 0:N-pitch_shift]
         else:

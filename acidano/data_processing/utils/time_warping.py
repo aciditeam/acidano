@@ -17,7 +17,7 @@ def linear_warp_pr(pianoroll, T_target):
     T_source = get_pianoroll_time(pianoroll)
     ratio = T_source / float(T_target)
     index_mask = [int(math.floor(x * ratio)) for x in range(0, T_target)]
-    for k,v in pianoroll.iteritems():
+    for k, v in pianoroll.iteritems():
         out[k] = pianoroll[k][index_mask, :]
     return out
 
@@ -61,7 +61,7 @@ def warp_dictionnary_trace(dico, trace):
         time_value = value.shape[0]
         pr_temp = np.zeros((time_len, value.shape[1]))
         counter = 0
-        for (i,bool_note) in enumerate(trace):
+        for (i, bool_note) in enumerate(trace):
             if counter >= time_value:
                 break
             if bool_note:
@@ -77,10 +77,10 @@ def remove_zero_in_trace(dico, trace):
     # Trace is a binary list indicating if a gap is inserted or not in a matrix
     dico_out = {}
     time_len = sum(trace)
-    for k,v in dico.iteritems():
+    for k, v in dico.iteritems():
         pr_temp = np.zeros((time_len, v.shape[1]))
         counter = 0
-        for (i,bool_note) in enumerate(trace):
+        for (i, bool_note) in enumerate(trace):
             if bool_note:
                 pr_temp[counter] = v[i]
                 counter += 1
@@ -103,9 +103,9 @@ def dtw_pr(pr0, pr1):
     pr1_flat = sum_along_instru_dim(pr1)
 
     def fun_thresh(y):
-        return np.minimum(y,1).astype(int)
+        return np.minimum(y, 1).astype(int)
 
-    distance, path = fastdtw(pr0_flat, pr1_flat, dist=lambda a,b: euclidean(fun_thresh(a), fun_thresh(b)))
+    distance, path = fastdtw(pr0_flat, pr1_flat, dist=lambda a, b: euclidean(fun_thresh(a), fun_thresh(b)))
     # Get paths
     path0 = [e[0] for e in path]
     path1 = [e[1] for e in path]
@@ -117,8 +117,8 @@ def dtw_pr(pr0, pr1):
 
 
 if __name__ == '__main__':
-    l0 = [1,1,2,4,4,4,4,4,9,9,9,9,9]
-    l1 = [1,1,2,4,4,0,0,9]
+    l0 = [1, 1, 2, 4, 4, 4, 4, 4, 9, 9, 9, 9, 9]
+    l1 = [1, 1, 2, 4, 4, 0, 0, 9]
 
     gapopen = 3
     gapextend = 1

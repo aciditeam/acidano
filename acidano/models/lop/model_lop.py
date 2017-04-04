@@ -36,6 +36,9 @@ class Model_lop(object):
         self.dropout_probability = model_param['dropout_probability']
         self.weight_decay_coeff = model_param['weight_decay_coeff']
 
+        # Do we normalize input ?
+        self.number_note_normalization = model_param['number_note_normalization']
+
         # Numpy and theano random generators
         self.rng_np = RandomState(25)
         self.rng = RandomStreams(seed=25)
@@ -60,14 +63,14 @@ class Model_lop(object):
             'weight_decay_coeff': hp.choice('weight_decay_coeff', [
                 0.0,
                 hp.uniform('a', 1e-4, 1e-4)
-            ])
+            ]),
         }
 
         space_training.update(space_regularization)
         return space_training
 
     ###############################
-    #  Set flags for the different steps
+    # Set flags for the different steps
     ###############################
     def get_train_function(self):
         self.step_flag = 'train'

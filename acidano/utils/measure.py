@@ -17,7 +17,6 @@ def accuracy_measure(true_frame, pred_frame):
     false_positive = T.sum(pred_frame * (1 - true_frame), axis=axis)
 
     quotient = true_positive + false_negative + false_positive
-
     accuracy_measure = T.switch(T.eq(quotient, 0), 0, true_positive / quotient)
     # Rmq : avec ce switch, si on prédit correctement un silence, le score est de 0...
     # This has to be fixed.
