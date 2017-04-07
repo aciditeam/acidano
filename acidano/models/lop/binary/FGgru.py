@@ -16,13 +16,13 @@ import numpy as np
 import theano
 import theano.tensor as T
 
-# Propagation
-from acidano.utils.forward import propup_sigmoid, propup_tanh
 # Performance measures
 from acidano.utils.init import shared_normal, shared_zeros
 from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure
 # Regularization
 from acidano.utils.regularization import dropout_function
+from acidano.utils.regularization import batch_norm
+from acidano.utils.cost import weighted_binary_cross_entropy
 
 
 class FGgru(Model_lop):
@@ -51,6 +51,11 @@ class FGgru(Model_lop):
         # Number of hidden units
         self.n_hs = model_param['n_hidden']
         self.n_layer = len(self.n_hs)
+
+        # Class normalization
+        # Vector of size n_o, number of notes activation divided by mean number of note activation
+        # See : https://arxiv.org/pdf/1703.10663.pdf
+        self.class_normalization = model_param['class_normalization']
 
         self.W_z = {}
         self.U_z = {}
@@ -181,10 +186,29 @@ class FGgru(Model_lop):
         return s_t
 
     def forward_pass(self, orch_past, piano, batch_size):
+        ################################################################
+        ################################################################
+        ################################################################
+        # Normalization by the number of notes
+        # orch_past_norm = self.number_note_normalization_fun(orch_past)
+        # piano_norm = self.number_note_normalization_fun(piano)
+
+        # TEST : batch norm on the input
+        orch_past_norm = batch_norm(orch_past, (self.temporal_order, self.n_o))
+        piano_norm = batch_norm(piano, (self.n_p,))
+        ################################################################
+        ################################################################
+        ################################################################
+
+        # Time needs to be the first dimension
+        orch_past_loop = orch_past_norm.dimshuffle((1, 0, 2))
+
+        # Initialization
         input_layer = [None]*(self.n_layer+1)
-        input_layer[0] = orch_past
+        input_layer[0] = orch_past_loop
         n_lm1 = self.n_o
 
+        # Loop
         for layer, n_h in enumerate(self.n_hs):
             s_0 = T.zeros((batch_size, n_h), dtype=theano.config.floatX)
             # Infer hidden states
@@ -203,35 +227,54 @@ class FGgru(Model_lop):
 
         # Last hidden units
         last_hidden = input_layer[self.n_layer]
+
         # Orchestra representation is the last state of the topmost rnn
         orchestra_repr = last_hidden[-1]
 
-        concat_input = T.concatenate([orchestra_repr, piano], axis=1)
+        ################################################################
+        ################################################################
+        ################################################################
+        # Batch Normalization
+        orchestra_repr_norm = batch_norm(orchestra_repr, (n_lm1,))
+        ################################################################
+        ################################################################
+        ################################################################
+
+        concat_input = T.concatenate([orchestra_repr_norm, piano_norm], axis=1)
         # Last layer
         orch_pred_mean = T.nnet.sigmoid(T.dot(concat_input, self.W) + self.b)
-        orch_pred = self.rng.binomial(size=orch_pred_mean.shape, n=1, p=orch_pred_mean,
+
+        ################################################################
+        ################################################################
+        ################################################################
+        # Before sampling, we THRESHOLD
+        # orch_pred_mean_threshold = orch_pred_mean
+        orch_pred_mean_threshold = T.where(T.le(orch_pred_mean, 0.1), 0, orch_pred_mean)
+        ################################################################
+        ################################################################
+        ################################################################
+
+        # Sampling
+        orch_pred = self.rng.binomial(size=orch_pred_mean_threshold.shape, n=1, p=orch_pred_mean_threshold,
                                       dtype=theano.config.floatX)
 
-        return orch_pred_mean, orch_pred, updates
+        return orch_pred_mean, orch_pred_mean_threshold, orch_pred, updates
 
     ###############################
     #       COST
     ###############################
     def cost_updates(self, optimizer):
-        # Time needs to be the first dimension
-        o_past_loop = self.o_past.dimshuffle((1, 0, 2))
         # Infer Orchestra sequence
-        pred, _, updates_train = self.forward_pass(o_past_loop, self.p, self.batch_size)
-
+        pred, _, _, updates_train = self.forward_pass(self.o_past, self.p, self.batch_size)
         # Compute error function
-        cost = T.nnet.binary_crossentropy(pred, self.o)
+        cost = weighted_binary_cross_entropy(pred, self.o, self.class_normalization)
         # Sum over pitch axis
         cost = cost.sum(axis=1)
         # Mean along batch dimension
         cost = T.mean(cost)
 
         # Weight decay
-        cost = cost + self.weight_decay_coeff * self.get_weight_decay()
+        cost = cost + self.weight_decay_coeff * self.get_weight_decay() + (0.1 * T.pow(self.b, 2).sum())
         # Monitor = cost
         monitor = cost
         # Update weights
@@ -262,10 +305,8 @@ class FGgru(Model_lop):
     #       PREDICTION
     ###############################
     def prediction_measure(self):
-        # Time needs to be the first dimension
-        o_past_loop = self.o_past.dimshuffle((1, 0, 2))
         # Generate the last frame for the sequence v
-        o_pred_mean, _, updates_valid = self.forward_pass(o_past_loop, self.p, self.batch_size)
+        _, o_pred_mean, _, updates_valid = self.forward_pass(self.o_past, self.p, self.batch_size)
         # Get the ground truth
         true_frame = self.o_truth
         # Measure the performances
@@ -299,14 +340,12 @@ class FGgru(Model_lop):
     def get_generate_function(self, piano, orchestra, generation_length, seed_size, batch_generation_size, name="generate_sequence"):
         Model_lop.get_generate_function(self)
         seed_size = self.temporal_order-1
-
-        o_past_loop = self.o_past_gen.dimshuffle((1, 0, 2))
-        _, next_orch, updates_next_sample = self.forward_pass(o_past_loop, self.p_gen, batch_generation_size)
-
+        pred, _, next_orch, updates_next_sample = self.forward_pass(self.o_past_gen, self.p_gen, batch_generation_size)
         # Compile a function to get the next visible sample
+
         next_sample = theano.function(
             inputs=[self.o_past_gen, self.p_gen],
-            outputs=[next_orch],
+            outputs=[next_orch, pred],
             updates=updates_next_sample,
             name="next_sample",
         )
@@ -319,7 +358,9 @@ class FGgru(Model_lop):
                 p_gen = piano_gen[:, index, :]
                 o_past_gen = orchestra_gen[:, index-self.temporal_order+1:index, :]
                 # Get the next sample
-                o_t = (np.asarray(next_sample(o_past_gen, p_gen))[0]).astype(theano.config.floatX)
+                out_theano = next_sample(o_past_gen, p_gen)
+                o_t = (np.asarray(out_theano)[0]).astype(theano.config.floatX)
+                pred_t = (np.asarray(out_theano)[1]).astype(theano.config.floatX)
                 # Add this visible sample to the generated orchestra
                 orchestra_gen[:, index, :] = o_t
             return (orchestra_gen,)
@@ -332,7 +373,8 @@ class FGgru(Model_lop):
         model_space['batch_size'] = 200
         model_space['temporal_order'] = 10
         model_space['dropout_probability'] = 0
-        model_space['weight_decay_coeff'] = 0
+        model_space['weight_decay_coeff'] = 1e-3
+        model_space['number_note_normalization'] = True
         # Last layer could be of size piano = 93
         model_space['n_hidden'] = [500, 500, 93]
         return model_space

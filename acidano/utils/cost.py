@@ -103,3 +103,8 @@ def KLGaussianGaussian(mu1, sig1, mu2, sig2):
                + (sig1 ** 2 + (mu1 - mu2) ** 2) / sig2 ** 2
                - 1), axis=1)
     return kl
+
+
+def weighted_binary_cross_entropy(pred, target, weights):
+    # From theano
+    return -(weights * target * T.log(pred) + (1.0 - target) * T.log(1.0 - pred))
