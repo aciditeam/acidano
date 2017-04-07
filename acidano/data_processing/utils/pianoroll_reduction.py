@@ -55,6 +55,46 @@ def remove_unmatched_silence(pr0, pr1):
     return pr0_clean, pr1_clean, duration
 
 
+def remove_silence(pr):
+    # Detect silences
+    flat = sum_along_instru_dim(pr).sum(axis=1)
+    ind_clean = np.where(np.logical_not(flat == 0))[0]
+
+    def keep_clean(pr, ind_clean):
+        pr_out = {}
+        for k, v in pr.iteritems():
+            pr_out[k] = v[ind_clean]
+        return pr_out
+    pr_clean = keep_clean(pr, ind_clean)
+
+    mapping = np.zeros((flat.shape[0]), dtype=np.int) - 1
+    counter = 0
+    for elem in ind_clean:
+        mapping[elem] = counter
+        counter += 1
+
+    return pr_clean, mapping
+
+
+def remove_match_silence(pr0, pr1):
+    # Detect problems
+    flat_0 = sum_along_instru_dim(pr0).sum(axis=1)
+    flat_1 = sum_along_instru_dim(pr1).sum(axis=1)
+    ind_clean = np.where(np.logical_not((flat_0 == 0) & (flat_1 == 0)))[0]
+
+    def keep_clean(pr, ind_clean):
+        pr_out = {}
+        for k, v in pr.iteritems():
+            pr_out[k] = v[ind_clean]
+        return pr_out
+
+    pr0_clean = keep_clean(pr0, ind_clean)
+    pr1_clean = keep_clean(pr1, ind_clean)
+    duration = len(ind_clean)
+
+    return pr0_clean, pr1_clean, duration
+
+
 def reconstruct_full_pr(pr_reduced, mapping_reduced):
     # Catch full size pr pitch dimension
     max_index = 0

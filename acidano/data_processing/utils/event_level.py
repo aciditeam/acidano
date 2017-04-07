@@ -16,3 +16,17 @@ def get_event_ind(pr):
 def get_event_ind_dict(pr_dict):
     pr_flat = sum_along_instru_dim(pr_dict)
     return get_event_ind(pr_flat)
+
+
+def from_event_to_frame(pr, event):
+    # Start and end events
+    event_start = event[:-1]
+    event_end = event[1:]
+    # Instanciate new pr
+    T = np.max(event) + 1
+    N = pr.shape[1]
+    new_pr = np.zeros((T, N))
+    # Fill it
+    for ind, (start, end) in enumerate(zip(event_start, event_end)):
+        new_pr[start: end] = pr[ind]
+    return new_pr
