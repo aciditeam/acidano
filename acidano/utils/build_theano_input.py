@@ -7,6 +7,7 @@ import numpy as np
 
 
 def build_sequence(pr, index, batch_size, seq_length, last_dim):
+    # T = seq_length
     # [T-1, T-2, ..., 0]
     decreasing_time = theano.shared(np.arange(seq_length-1, -1, -1, dtype=np.int32))
     # Temporal_shift =

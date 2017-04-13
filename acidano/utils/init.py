@@ -8,8 +8,7 @@ from numpy.random import RandomState
 
 # Initialization functions
 def shared_normal(shape, scale=1, rng=None, name=None):
-    '''Initialize a matrix shared variable with normally distributed
-    elements.'''
+    """Initialize a matrix shared variable with normally distributed elements."""
     if rng is None:
         rng = RandomState(seed=np.random.randint(1 << 30))
     return theano.shared(rng.normal(
@@ -18,7 +17,7 @@ def shared_normal(shape, scale=1, rng=None, name=None):
 
 
 def shared_zeros(shape, bias=0, name=None):
-    '''Initialize a vector shared variable with zero elements.'''
+    """Initialize a vector shared variable with zero elements."""
     return theano.shared(np.zeros(shape, dtype=theano.config.floatX) + bias,
                          name=name)
 

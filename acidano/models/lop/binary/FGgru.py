@@ -21,8 +21,9 @@ from acidano.utils.init import shared_normal, shared_zeros
 from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure
 # Regularization
 from acidano.utils.regularization import dropout_function
-from acidano.utils.regularization import batch_norm
 from acidano.utils.cost import weighted_binary_cross_entropy
+# Build matrix inputs
+from acidano.utils.build_theano_input import build_sequence
 
 
 class FGgru(Model_lop):
@@ -194,8 +195,11 @@ class FGgru(Model_lop):
         # piano_norm = self.number_note_normalization_fun(piano)
 
         # TEST : batch norm on the input
-        orch_past_norm = batch_norm(orch_past, (self.temporal_order, self.n_o))
-        piano_norm = batch_norm(piano, (self.n_p,))
+        # orch_past_norm = batch_norm(orch_past, (self.temporal_order, self.n_o))
+        # piano_norm = batch_norm(piano, (self.n_p,))
+        #
+        orch_past_norm = orch_past
+        piano_norm = piano
         ################################################################
         ################################################################
         ################################################################
@@ -235,7 +239,8 @@ class FGgru(Model_lop):
         ################################################################
         ################################################################
         # Batch Normalization
-        orchestra_repr_norm = batch_norm(orchestra_repr, (n_lm1,))
+        # orchestra_repr_norm = batch_norm(orchestra_repr, (n_lm1,))
+        orchestra_repr_norm = orchestra_repr
         ################################################################
         ################################################################
         ################################################################
@@ -274,7 +279,8 @@ class FGgru(Model_lop):
         cost = T.mean(cost)
 
         # Weight decay
-        cost = cost + self.weight_decay_coeff * self.get_weight_decay() + (0.1 * T.pow(self.b, 2).sum())
+        # cost = cost + self.weight_decay_coeff * self.get_weight_decay() + (0.1 * T.pow(self.b, 2).sum())
+        cost = cost + self.weight_decay_coeff * self.get_weight_decay()
         # Monitor = cost
         monitor = cost
         # Update weights
@@ -287,7 +293,7 @@ class FGgru(Model_lop):
     #       TRAIN FUNCTION
     ###############################
     def get_train_function(self, piano, orchestra, optimizer, name):
-        Model_lop.get_train_function(self)
+        self.step_flag = 'train'
         # index to a [mini]batch : int32
         index = T.ivector()
         # get the cost and the gradient corresponding to one step of CD-15
@@ -296,7 +302,7 @@ class FGgru(Model_lop):
                                outputs=[cost, monitor],
                                updates=updates,
                                givens={self.p: piano[index, :],
-                                       self.o_past: self.build_sequence(orchestra, index-1, self.batch_size, self.temporal_order-1, self.n_o),
+                                       self.o_past: build_sequence(orchestra, index-1, self.batch_size, self.temporal_order-1, self.n_o),
                                        self.o: orchestra[index, :]},
                                name=name
                                )
@@ -319,7 +325,7 @@ class FGgru(Model_lop):
     #       VALIDATION FUNCTION
     ##############################
     def get_validation_error(self, piano, orchestra, name):
-        Model_lop.get_validation_error(self)
+        self.step_flag = 'validate'
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -329,7 +335,7 @@ class FGgru(Model_lop):
                                outputs=[precision, recall, accuracy, true_frame, past_frame, piano_frame, predicted_frame],
                                updates=updates_valid,
                                givens={self.p: piano[index, :],
-                                       self.o_past: self.build_sequence(orchestra, index-1, self.batch_size, self.temporal_order-1, self.n_o),
+                                       self.o_past: build_sequence(orchestra, index-1, self.batch_size, self.temporal_order-1, self.n_o),
                                        self.o_truth: orchestra[index, :]},
                                name=name
                                )
@@ -338,7 +344,7 @@ class FGgru(Model_lop):
     #       GENERATION
     ###############################
     def get_generate_function(self, piano, orchestra, generation_length, seed_size, batch_generation_size, name="generate_sequence"):
-        Model_lop.get_generate_function(self)
+        self.step_flag = 'generate'
         seed_size = self.temporal_order-1
         pred, _, next_orch, updates_next_sample = self.forward_pass(self.o_past_gen, self.p_gen, batch_generation_size)
         # Compile a function to get the next visible sample
@@ -360,7 +366,6 @@ class FGgru(Model_lop):
                 # Get the next sample
                 out_theano = next_sample(o_past_gen, p_gen)
                 o_t = (np.asarray(out_theano)[0]).astype(theano.config.floatX)
-                pred_t = (np.asarray(out_theano)[1]).astype(theano.config.floatX)
                 # Add this visible sample to the generated orchestra
                 orchestra_gen[:, index, :] = o_t
             return (orchestra_gen,)
@@ -373,7 +378,7 @@ class FGgru(Model_lop):
         model_space['batch_size'] = 200
         model_space['temporal_order'] = 10
         model_space['dropout_probability'] = 0
-        model_space['weight_decay_coeff'] = 1e-3
+        model_space['weight_decay_coeff'] = 1e-4
         model_space['number_note_normalization'] = True
         # Last layer could be of size piano = 93
         model_space['n_hidden'] = [500, 500, 93]

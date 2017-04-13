@@ -18,6 +18,8 @@ import theano.tensor as T
 # Performance measures
 from acidano.utils.init import shared_normal, shared_zeros
 from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure
+# Build matrix inputs
+import acidano.utils.build_theano_input as build_theano_input
 
 
 class FGcRBM(Model_lop):
@@ -252,19 +254,6 @@ class FGcRBM(Model_lop):
     ###############################
     #       TRAIN FUNCTION
     ###############################
-    def build_past(self, orchestra, index):
-        # [T-1, T-2, ..., 0]
-        decreasing_time = theano.shared(np.arange(self.temporal_order-1, 0, -1, dtype=np.int32))
-        #
-        temporal_shift = T.tile(decreasing_time, (self.batch_size, 1))
-        # Reshape
-        index_full = index.reshape((self.batch_size, 1)) - temporal_shift
-        # Slicing
-        past = orchestra[index_full, :]\
-            .ravel()\
-            .reshape((self.batch_size, (self.temporal_order-1)*self.n_v))
-        return past
-
     def build_latent(self, piano, index):
         visible = piano[index, :]
         return visible
@@ -274,7 +263,7 @@ class FGcRBM(Model_lop):
         return visible
 
     def get_train_function(self, piano, orchestra, optimizer, name):
-        Model_lop.get_train_function(self)
+        self.step_flag = 'train'
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -285,7 +274,7 @@ class FGcRBM(Model_lop):
                                outputs=[cost, monitor, mean_chain],
                                updates=updates,
                                givens={self.v: self.build_visible(orchestra, index),
-                                       self.p: self.build_past(orchestra, index),
+                                       self.p: build_theano_input.build_sequence(orchestra, index-1, self.batch_size, self.temporal_order-1, self.n_v),
                                        self.z: self.build_latent(piano, index)},
                                name=name
                                )
@@ -310,7 +299,7 @@ class FGcRBM(Model_lop):
     #       VALIDATION FUNCTION
     ##############################
     def get_validation_error(self, piano, orchestra, name):
-        Model_lop.get_validation_error(self)
+        self.step_flag = 'validate'
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -319,7 +308,7 @@ class FGcRBM(Model_lop):
         return theano.function(inputs=[index],
                                outputs=[precision, recall, accuracy],
                                updates=updates_valid,
-                               givens={self.p: self.build_past(orchestra, index),
+                               givens={self.p: build_theano_input.build_sequence(orchestra, index-1, self.batch_size, self.temporal_order-1, self.n_v),
                                        self.z: self.build_latent(piano, index),
                                        self.v_truth: self.build_visible(orchestra, index)},
                                name=name
@@ -341,7 +330,8 @@ class FGcRBM(Model_lop):
     def get_generate_function(self, piano, orchestra,
                               generation_length, seed_size, batch_generation_size,
                               name="generate_sequence"):
-        Model_lop.get_generate_function(self)
+        self.step_flag = 'generate'
+
         # Seed_size is actually fixed by the temporal_order
         seed_size = self.temporal_order - 1
 

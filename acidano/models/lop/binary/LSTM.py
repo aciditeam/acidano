@@ -23,6 +23,8 @@ from acidano.utils.init import shared_normal, shared_zeros
 from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure
 # Regularization
 from acidano.utils.regularization import dropout_function
+# Inputs
+import acidano.utils.build_theano_input as build_theano_input
 
 
 class LSTM(Model_lop):
@@ -259,10 +261,10 @@ class LSTM(Model_lop):
         return cost, monitor, updates_train
 
     ###############################
-    ##       TRAIN FUNCTION
+    #       TRAIN FUNCTION
     ###############################
     def get_train_function(self, piano, orchestra, optimizer, name):
-        Model_lop.get_train_function(self)
+        self.step_flag = 'train'
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -272,17 +274,17 @@ class LSTM(Model_lop):
         return theano.function(inputs=[index],
                                outputs=[cost, monitor],
                                updates=updates,
-                               givens={self.v: self.build_sequence(piano, index, self.batch_size, self.temporal_order, self.n_v),
-                                       self.o: self.build_sequence(orchestra, index, self.batch_size, self.temporal_order, self.n_o)},
+                               givens={self.v: build_theano_input.build_sequence(piano, index, self.batch_size, self.temporal_order, self.n_v),
+                                       self.o: build_theano_input.build_sequence(orchestra, index, self.batch_size, self.temporal_order, self.n_o)},
                                name=name
                                )
 
     ###############################
-    ##       PREDICTION
+    #       PREDICTION
     ###############################
     def prediction_measure(self):
         # Time needs to be the first dimension
-        v_loop = self.v.dimshuffle((1,0,2))
+        v_loop = self.v.dimshuffle((1, 0, 2))
         # Generate the last frame for the sequence v
         _, predicted_frame, updates_valid = self.forward_pass(v_loop, self.batch_size)
         # Get the ground truth
@@ -293,9 +295,9 @@ class LSTM(Model_lop):
         accuracy_time = accuracy_measure(true_frame, predicted_frame)
         # 2 options :
         #       1 - take the last time index
-        precision = precision_time[:,-1]
-        recall = recall_time[:,-1]
-        accuracy = accuracy_time[:,-1]
+        precision = precision_time[:, -1]
+        recall = recall_time[:, -1]
+        accuracy = accuracy_time[:, -1]
         #       2 - mean over time
         # precision = T.mean(precision_time, axis=1)
         # recall = T.mean(recall_time, axis=1)
@@ -303,10 +305,10 @@ class LSTM(Model_lop):
         return precision, recall, accuracy, updates_valid
 
     ###############################
-    ##       VALIDATION FUNCTION
+    #       VALIDATION FUNCTION
     ##############################
     def get_validation_error(self, piano, orchestra, name):
-        Model_lop.get_validation_error(self)
+        self.step_flag = 'validate'
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -315,29 +317,29 @@ class LSTM(Model_lop):
         return theano.function(inputs=[index],
                                outputs=[precision, recall, accuracy],
                                updates=updates_valid,
-                               givens={self.v: self.build_sequence(piano, index, self.batch_size, self.temporal_order, self.n_v),
-                                       self.o_truth: self.build_sequence(orchestra, index, self.batch_size, self.temporal_order, self.n_o)},
+                               givens={self.v: build_theano_input.build_sequence(piano, index, self.batch_size, self.temporal_order, self.n_v),
+                                       self.o_truth: build_theano_input.build_sequence(orchestra, index, self.batch_size, self.temporal_order, self.n_o)},
                                name=name
                                )
 
     ###############################
-    ##       GENERATION
+    #       GENERATION
     ###############################
     # Generation for the LSTM model is a bit special :
     # you can't seed the orchestration with the beginning of an existing score...
     def get_generate_function(self, piano, orchestra, generation_length, seed_size, batch_generation_size, name="generate_sequence"):
-        Model_lop.get_generate_function(self)
+        self.step_flag = 'generate'
 
         # Index
         index = T.ivector()
 
         self.v_gen.tag.test_value = np.random.rand(batch_generation_size, generation_length, self.n_v).astype(theano.config.floatX)
-        v_loop = self.v_gen.dimshuffle((1,0,2))
+        v_loop = self.v_gen.dimshuffle((1, 0, 2))
         _, generated_sequence, updates_generation = self.forward_pass(v_loop, batch_generation_size)
 
         return theano.function(inputs=[index],
                                outputs=[generated_sequence],
                                updates=updates_generation,
-                               givens={self.v_gen: self.build_sequence(piano, index, batch_generation_size, generation_length, self.n_v)},
+                               givens={self.v_gen: build_theano_input.build_sequence(piano, index, batch_generation_size, generation_length, self.n_v)},
                                name=name
                                )

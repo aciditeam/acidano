@@ -1,32 +1,29 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
-""" Repeat for binary units """
+"""Repeat for binary units."""
 
 # Model lop
 from acidano.models.lop.model_lop import Model_lop
 
 # Hyperopt
 from acidano.utils import hopt_wrapper
-from math import log
-
-# Numpy
-import numpy as np
 
 # Theano
 import theano
 import theano.tensor as T
 
 # Performance measures
-from acidano.utils.init import shared_normal, shared_zeros
 from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure
 
 
 class Repeat(Model_lop):
-    """Repeat previous frame
+    """Repeat previous frame.
+
     Notes : why not 100% accuracy if we just repeat o(t) instead of o(t-1) ?
     Because if the true frame is a silence and predicted frame is a silence, the score is not 1 but 0...
     """
+
     def __init__(self,
                  model_param,
                  dimensions,
@@ -41,8 +38,8 @@ class Repeat(Model_lop):
         return
 
     ###############################
-    ##       STATIC METHODS
-    ##       FOR METADATA AND HPARAMS
+    #       STATIC METHODS
+    #       FOR METADATA AND HPARAMS
     ###############################
     @staticmethod
     def get_hp_space():
@@ -57,10 +54,11 @@ class Repeat(Model_lop):
         return "Repeat"
 
     ###############################
-    ##       TRAIN FUNCTION
+    #       TRAIN FUNCTION
     ###############################
     def get_train_function(self, piano, orchestra, optimizer, name):
-        Model_lop.get_train_function(self)
+        self.step_flag = 'train'
+
         def unit(i):
             a = 0
             b = 0
@@ -68,7 +66,7 @@ class Repeat(Model_lop):
         return unit
 
     ###############################
-    ##       PREDICTION
+    #       PREDICTION
     ###############################
     def prediction_measure(self):
         predicted_frame = self.past
@@ -82,18 +80,18 @@ class Repeat(Model_lop):
         return precision, recall, accuracy, updates_valid
 
     ###############################
-    ##       VALIDATION FUNCTION
+    #       VALIDATION FUNCTION
     ##############################
     def build_visible(self, orchestra, index):
-        visible = orchestra[index,:]
+        visible = orchestra[index, :]
         return visible
 
     def build_past(self, orchestra, index):
-        past = orchestra[index-1,:]
+        past = orchestra[index-1, :]
         return past
 
     def get_validation_error(self, piano, orchestra, name):
-        Model_lop.get_validation_error(self)
+        self.step_flag = 'validate'
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -109,20 +107,21 @@ class Repeat(Model_lop):
                                )
 
     ###############################
-    ##       GENERATION
+    #       GENERATION
     ###############################
     def get_generate_function(self, piano, orchestra,
                               generation_length, seed_size, batch_generation_size,
                               name="generate_sequence"):
-        Model_lop.get_generate_function(self)
+        self.step_flag = 'generate'
+
         def closure(ind):
             # Initialize generation matrice
             _, orchestra_gen = self.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)
             for index in xrange(seed_size, generation_length, 1):
                 # Get the next sample
-                v_t = orchestra_gen[:,index-1,:]
+                v_t = orchestra_gen[:, index-1, :]
                 # Add this visible sample to the generated orchestra
-                orchestra_gen[:,index,:] = v_t
+                orchestra_gen[:, index, :] = v_t
             return (orchestra_gen,)
 
         return closure

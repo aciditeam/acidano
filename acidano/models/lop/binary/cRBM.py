@@ -30,13 +30,13 @@ from acidano.utils.measure import accuracy_measure, precision_measure, recall_me
 
 
 class cRBM(Model_lop):
-    """Conditional Restricted Boltzmann Machine (CRBM)  """
+    """Conditional Restricted Boltzmann Machine (CRBM)."""
+
     def __init__(self,
                  model_param,
                  dimensions,
                  checksum_database,
                  weights_initialization=None):
-        """ inspired by G. Taylor"""
 
         super(cRBM, self).__init__(model_param, dimensions, checksum_database)
 
@@ -85,8 +85,8 @@ class cRBM(Model_lop):
         return
 
     ###############################
-    ##       STATIC METHODS
-    ##       FOR METADATA AND HPARAMS
+    #       STATIC METHODS
+    #       FOR METADATA AND HPARAMS
     ###############################
 
     @staticmethod
@@ -106,7 +106,7 @@ class cRBM(Model_lop):
         return "cRBM"
 
     ###############################
-    ##       NEGATIVE PARTICLE
+    #       NEGATIVE PARTICLE
     ###############################
     def free_energy(self, v, bv, bh):
         # sum along pitch axis
@@ -153,7 +153,7 @@ class cRBM(Model_lop):
         return v_sample, mean_v, bv_dyn, bh_dyn, updates_rbm, mean_chain
 
     ###############################
-    ##       COST
+    #       COST
     ###############################
     def cost_updates(self, optimizer):
         # Get the negative particle
@@ -180,14 +180,14 @@ class cRBM(Model_lop):
         return cost, monitor, updates_train, mean_chain
 
     ###############################
-    ##       TRAIN FUNCTION
+    #       TRAIN FUNCTION
     ###############################
     def get_index_full(self, index, batch_size, length_seq):
         index.tag.test_value = np.linspace(50, 160, batch_size).astype(np.int32)
         # [T-1, T-2, ..., 0]
-        decreasing_time = theano.shared(np.arange(length_seq-1,0,-1, dtype=np.int32))
+        decreasing_time = theano.shared(np.arange(length_seq-1, 0, -1, dtype=np.int32))
         #
-        temporal_shift = T.tile(decreasing_time, (batch_size,1))
+        temporal_shift = T.tile(decreasing_time, (batch_size, 1))
         # Reshape
         index_full = index.reshape((batch_size, 1)) - temporal_shift
         return index_full
@@ -195,21 +195,21 @@ class cRBM(Model_lop):
     def build_past(self, piano, orchestra, index, batch_size, length_seq):
         index_full = self.get_index_full(index, batch_size, length_seq)
         # Slicing
-        past_orchestra = orchestra[index_full,:]\
+        past_orchestra = orchestra[index_full, :]\
             .ravel()\
             .reshape((batch_size, (length_seq-1)*self.n_v))
-        present_piano = piano[index,:]
+        present_piano = piano[index, :]
         # Concatenate along pitch dimension
         past = T.concatenate((present_piano, past_orchestra), axis=1)
         # Reshape
         return past
 
     def build_visible(self, orchestra, index):
-        visible = orchestra[index,:]
+        visible = orchestra[index, :]
         return visible
 
     def get_train_function(self, piano, orchestra, optimizer, name):
-        Model_lop.get_train_function(self)
+        self.step_flag = 'train'
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -225,7 +225,7 @@ class cRBM(Model_lop):
                                )
 
     ###############################
-    ##       PREDICTION
+    #       PREDICTION
     ###############################
     def prediction_measure(self):
         self.v = self.rng.uniform((self.batch_size, self.n_v), 0, 1, dtype=theano.config.floatX)
@@ -241,10 +241,10 @@ class cRBM(Model_lop):
         return precision, recall, accuracy, updates_valid
 
     ###############################
-    ##       VALIDATION FUNCTION
+    #       VALIDATION FUNCTION
     ##############################
     def get_validation_error(self, piano, orchestra, name):
-        Model_lop.get_validation_error(self)
+        self.step_flag = 'validate'
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -260,21 +260,21 @@ class cRBM(Model_lop):
                                )
 
     ###############################
-    ##       GENERATION
+    #       GENERATION
     ###############################
     def build_past_generation(self, piano_gen, orchestra_gen, index, batch_size, length_seq):
-        past_orchestra = orchestra_gen[:,index-self.temporal_order+1:index,:]\
+        past_orchestra = orchestra_gen[:, index-self.temporal_order+1:index, :]\
             .ravel()\
             .reshape((batch_size, (length_seq-1)*self.n_v))
 
-        present_piano = piano_gen[:,index,:]
+        present_piano = piano_gen[:, index, :]
         p_gen = np.concatenate((present_piano, past_orchestra), axis=1)
         return p_gen
 
     def get_generate_function(self, piano, orchestra,
                               generation_length, seed_size, batch_generation_size,
                               name="generate_sequence"):
-        Model_lop.get_generate_function(self)
+        self.step_flag = 'generate'
         # Seed_size is actually fixed by the temporal_order
         seed_size = self.temporal_order - 1
 
@@ -304,7 +304,7 @@ class cRBM(Model_lop):
                 # Get the next sample
                 v_t = (np.asarray(next_sample(v_gen, p_gen))[0]).astype(theano.config.floatX)
                 # Add this visible sample to the generated orchestra
-                orchestra_gen[:,index,:] = v_t
+                orchestra_gen[:, index, :] = v_t
             return (orchestra_gen,)
 
         return closure

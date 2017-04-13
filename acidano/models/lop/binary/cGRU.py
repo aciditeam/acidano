@@ -23,10 +23,13 @@ from acidano.utils.init import shared_normal, shared_zeros
 from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure
 # Regularization
 from acidano.utils.regularization import dropout_function
+# Build matrix inputs
+import acidano.utils.build_theano_input as build_theano_input
 
 
 class cGRU(Model_lop):
-    """ conditional GRU
+    """Conditional GRU.
+
     Predictive model,
         visible = orchestra(t-1)
         output = orchestra(t)
@@ -85,7 +88,7 @@ class cGRU(Model_lop):
                 self.b_z[layer] = shared_zeros((n_ht), name='b_z'+str(layer))
                 # Hidden gate
                 self.W_vh[layer] = shared_normal((n_htm1, n_ht), 0.01, name='W_vh'+str(layer))
-                self.W_hh[layer] = shared_normal((n_ht, n_ht), 0.01, name='W_hh'Wstr(layer))
+                self.W_hh[layer] = shared_normal((n_ht, n_ht), 0.01, name='W_hh'+str(layer))
                 self.b_h[layer] = shared_zeros((n_ht), name='b_h'+str(layer))
 
             # Conditional (only in the last layer)
@@ -120,7 +123,7 @@ class cGRU(Model_lop):
             self.L_ho.values() + self.b_o.values() + [self.W, self.b]
 
         # Variables
-        self.v = T.tensor3('v', dtype=theano.config.floatX
+        self.v = T.tensor3('v', dtype=theano.config.floatX)
         self.o = T.tensor3('o', dtype=theano.config.floatX)
         self.x = T.tensor3('x', dtype=theano.config.floatX)
         self.o_truth = T.tensor3('o_truth', dtype=theano.config.floatX)
@@ -135,8 +138,8 @@ class cGRU(Model_lop):
         return
 
     ###############################
-    ##       STATIC METHODS
-    ##       FOR METADATA AND HPARAMS
+    #       STATIC METHODS
+    #       FOR METADATA AND HPARAMS
     ###############################
     @staticmethod
     def get_hp_space():
@@ -159,7 +162,7 @@ class cGRU(Model_lop):
         return "LSTM"
 
     ###############################
-    ##  FORWARD PASS
+    #  FORWARD PASS
     ###############################
     def corruption(self, h_lm1_t, n_lm1, axis):
         # Get input dimension (dieu que c'est moche)
@@ -225,7 +228,7 @@ class cGRU(Model_lop):
         last_hidden = input_layer[self.n_layer]
         # (batch, time, pitch)
         if last_hidden.ndim == 3:
-            last_hidden = last_hidden.dimshuffle((1,0,2))
+            last_hidden = last_hidden.dimshuffle((1, 0, 2))
 
         # Activation probability
         o_mean = propup_sigmoid(last_hidden, self.W, self.b)
@@ -236,11 +239,11 @@ class cGRU(Model_lop):
         return o_mean, o_sample, updates
 
     ###############################
-    ##       COST
+    #       COST
     ###############################
     def cost_updates(self, optimizer):
         # Time needs to be the first dimension
-        v_loop = self.v.dimshuffle((1,0,2))
+        v_loop = self.v.dimshuffle((1, 0, 2))
 
         # Infer Orchestra sequence
         self.pred, _, updates_train = self.forward_pass(v_loop, self.batch_size)
@@ -248,7 +251,7 @@ class cGRU(Model_lop):
         # Compute error function
         cost = T.nnet.binary_crossentropy(self.pred, self.o)
         # Sum over time and pitch axis
-        cost = cost.sum(axis=(1,2))
+        cost = cost.sum(axis=(1, 2))
         # Mean along batch dimension
         cost = T.mean(cost)
 
@@ -265,10 +268,10 @@ class cGRU(Model_lop):
         return cost, monitor, updates_train
 
     ###############################
-    ##       TRAIN FUNCTION
+    #       TRAIN FUNCTION
     ###############################
     def get_train_function(self, piano, orchestra, optimizer, name):
-        Model_lop.get_train_function(self)
+        self.step_flag = 'train'
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -278,17 +281,17 @@ class cGRU(Model_lop):
         return theano.function(inputs=[index],
                                outputs=[cost, monitor],
                                updates=updates,
-                               givens={self.v: self.build_sequence(piano, index, self.batch_size, self.temporal_order, self.n_v),
-                                       self.o: self.build_sequence(orchestra, index, self.batch_size, self.temporal_order, self.n_o)},
+                               givens={self.v: build_theano_input.build_sequence(piano, index, self.batch_size, self.temporal_order, self.n_v),
+                                       self.o: build_theano_input.build_sequence(orchestra, index, self.batch_size, self.temporal_order, self.n_o)},
                                name=name
                                )
 
     ###############################
-    ##       PREDICTION
+    #       PREDICTION
     ###############################
     def prediction_measure(self):
         # Time needs to be the first dimension
-        v_loop = self.v.dimshuffle((1,0,2))
+        v_loop = self.v.dimshuffle((1, 0, 2))
         # Generate the last frame for the sequence v
         _, predicted_frame, updates_valid = self.forward_pass(v_loop, self.batch_size)
         # Get the ground truth
@@ -299,9 +302,9 @@ class cGRU(Model_lop):
         accuracy_time = accuracy_measure(true_frame, predicted_frame)
         # 2 options :
         #       1 - take the last time index
-        precision = precision_time[:,-1]
-        recall = recall_time[:,-1]
-        accuracy = accuracy_time[:,-1]
+        precision = precision_time[:, -1]
+        recall = recall_time[:, -1]
+        accuracy = accuracy_time[:, -1]
         #       2 - mean over time
         # precision = T.mean(precision_time, axis=1)
         # recall = T.mean(recall_time, axis=1)
@@ -309,10 +312,10 @@ class cGRU(Model_lop):
         return precision, recall, accuracy, updates_valid
 
     ###############################
-    ##       VALIDATION FUNCTION
+    #       VALIDATION FUNCTION
     ##############################
     def get_validation_error(self, piano, orchestra, name):
-        Model_lop.get_validation_error(self)
+        self.step_flag = 'validation'
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -321,29 +324,29 @@ class cGRU(Model_lop):
         return theano.function(inputs=[index],
                                outputs=[precision, recall, accuracy],
                                updates=updates_valid,
-                               givens={self.v: self.build_sequence(piano, index, self.batch_size, self.temporal_order, self.n_v),
-                                       self.o_truth: self.build_sequence(orchestra, index, self.batch_size, self.temporal_order, self.n_o)},
+                               givens={self.v: build_theano_input.build_sequence(piano, index, self.batch_size, self.temporal_order, self.n_v),
+                                       self.o_truth: build_theano_input.build_sequence(orchestra, index, self.batch_size, self.temporal_order, self.n_o)},
                                name=name
                                )
 
     ###############################
-    ##       GENERATION
+    #       GENERATION
     ###############################
     # Generation for the LSTM model is a bit special :
     # you can't seed the orchestration with the beginning of an existing score...
     def get_generate_function(self, piano, orchestra, generation_length, seed_size, batch_generation_size, name="generate_sequence"):
-        Model_lop.get_generate_function(self)
+        self.step_flag = 'generate'
 
         # Index
         index = T.ivector()
 
         self.v_gen.tag.test_value = np.random.rand(batch_generation_size, generation_length, self.n_v).astype(theano.config.floatX)
-        v_loop = self.v_gen.dimshuffle((1,0,2))
+        v_loop = self.v_gen.dimshuffle((1, 0, 2))
         _, generated_sequence, updates_generation = self.forward_pass(v_loop, batch_generation_size)
 
         return theano.function(inputs=[index],
                                outputs=[generated_sequence],
                                updates=updates_generation,
-                               givens={self.v_gen: self.build_sequence(piano, index, batch_generation_size, generation_length, self.n_v)},
+                               givens={self.v_gen: build_theano_input.build_sequence(piano, index, batch_generation_size, generation_length, self.n_v)},
                                name=name
                                )

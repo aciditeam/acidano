@@ -6,23 +6,24 @@ import numpy as np
 import re
 import math
 
+
 def from_rawpr_to_type(dico_matrix, unit_type):
     result = {}
     # Binary unit ?
     if unit_type == 'binary':
-        for k,matrix in dico_matrix.iteritems():
+        for k, matrix in dico_matrix.iteritems():
             matrix[np.nonzero(matrix)] = 1
             result[k] = matrix
     elif unit_type == 'continuous':
         # Much easier to work with unit between 0 and 1, for several reason :
         #       - 'normalized' values
         #       - same reconstruction as for binary units when building midi files
-        for k,matrix in dico_matrix.iteritems():
+        for k, matrix in dico_matrix.iteritems():
             matrix = matrix / 127
             result[k] = matrix
     elif re.search('categorical', unit_type):
         # Categorical
-        for k,matrix in dico_matrix.iteritems():
+        for k, matrix in dico_matrix.iteritems():
             m = re.search(r'[0-9]+$', unit_type)
             N_category = int(m.group(0))
             matrix = matrix / 127.0
@@ -30,19 +31,20 @@ def from_rawpr_to_type(dico_matrix, unit_type):
             result[k] = matrix
     return result
 
+
 def from_type_to_binary(pr, unit_type):
     result = {}
     if unit_type == 'binary':
         result = pr
     elif unit_type == 'continuous':
-        for k,matrix in pr.iteritems():
+        for k, matrix in pr.iteritems():
             matrix[np.nonzero(matrix)] = 1
             result[k] = matrix
     elif re.search('categorical', unit_type):
         m = re.search(r'[0-9]+$', unit_type)
         N_category = int(m.group(0))
         # Group by N_category
-        for k,m in pr.iteritems():
+        for k, m in pr.iteritems():
             T = m.shape[0]
             N_in = m.shape[1]
             N_out = N_in / N_category
@@ -51,10 +53,11 @@ def from_type_to_binary(pr, unit_type):
                 start_pitch = n * N_category
                 end_pitch = start_pitch + N_category
                 # Dot product :
-                intensity = np.dot(m[:,start_pitch:end_pitch], np.asarray(range(N_category)))
-                m_out[:,n] = (intensity > 0)  # Binaries activations
+                intensity = np.dot(m[:, start_pitch:end_pitch], np.asarray(range(N_category)))
+                m_out[:, n] = (intensity > 0)  #  Binaries activations
             result[k] = m_out
     return result
+
 
 def from_continuous_to_categorical(pr_continuous, C):
     # pr_continuous = matrix, values between 0 1
@@ -74,14 +77,14 @@ def from_continuous_to_categorical(pr_continuous, C):
     # Mutliply pr_continuous by the number of category
     for t in range(T):
         for p in range(P):
-            if pr_continuous[t,p] == 0.0:
+            if pr_continuous[t, p] == 0.0:
                 cat_intensity = 0
-            elif pr_continuous[t,p] == 1.0:
+            elif pr_continuous[t, p] == 1.0:
                 cat_intensity = C-1
             else:
-                cat_intensity = int(math.floor(pr_continuous[t,p] * (C-1)) + 1)
+                cat_intensity = int(math.floor(pr_continuous[t, p] * (C-1)) + 1)
             ind_cat = p * C + cat_intensity
-            pr_cat[t,ind_cat] = 1
+            pr_cat[t, ind_cat] = 1
 
     ########## DEBUG ######################
     # from acidano.visualization.numpy_array.visualize_numpy import visualize_mat

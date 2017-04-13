@@ -20,10 +20,13 @@ import theano.tensor as T
 # Performance measures
 from acidano.utils.init import shared_normal, shared_zeros
 from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure
+# Build matrix inputs
+import acidano.utils.build_theano_input as build_theano_input
 
 
 class FGcLstmRbm(FGcRBM, LSTM, Model_lop):
-    """Factored Gated Conditional Restricted Boltzmann Machine (CRBM)"""
+    """Factored Gated Conditional Restricted Boltzmann Machine (CRBM)."""
+
     def __init__(self,
                  model_param,
                  dimensions,
@@ -97,8 +100,7 @@ class FGcLstmRbm(FGcRBM, LSTM, Model_lop):
             self.L_uout = weights_initialization['L_uout']
             self.b_out = weights_initialization['b_out']
 
-
-        self.params = [self.Wvf,self.Whf,self.Wzf,self.bv,self.bh,self.Apf,self.Avf,self.Azf,self.Bpf,self.Bhf,self.Bzf,
+        self.params = [self.Wvf, self.Whf, self.Wzf, self.bv, self.bh, self.Apf, self.Avf, self.Azf, self.Bpf, self.Bhf, self.Bzf,
                        self.L_vi, self.L_ui, self.b_i,
                        self.L_vf, self.L_uf, self.b_f,
                        self.L_vstate, self.L_ustate, self.b_state,
@@ -126,8 +128,8 @@ class FGcLstmRbm(FGcRBM, LSTM, Model_lop):
         return
 
     ###############################
-    ##       STATIC METHODS
-    ##       FOR METADATA AND HPARAMS
+    #       STATIC METHODS
+    #       FOR METADATA AND HPARAMS
     ###############################
     @staticmethod
     def get_hp_space():
@@ -148,7 +150,7 @@ class FGcLstmRbm(FGcRBM, LSTM, Model_lop):
         return "FGcLstmRbm"
 
     ###############################
-    ## CONDITIONAL PROBABILITIES and DYNAMIC BIASES
+    # CONDITIONAL PROBABILITIES and DYNAMIC BIASES
     ###############################
     # FGcRBM.get_f_h(v, z)
     # FGcRBM.get_f_v(h, z)
@@ -156,14 +158,14 @@ class FGcLstmRbm(FGcRBM, LSTM, Model_lop):
     # FGcRBM.get_bh_dyn(p, z)
 
     ###############################
-    ##       FGcRBM INFERENCE
+    #       FGcRBM INFERENCE
     ###############################
     # bv and bh are dynamic biases in the folowing definitions
     # FGcRBM.free_energy(v, z, bv, bh)
     # FGcRBM.gibbs_step(v, z, bv, bh, dropout_mask)
 
     ###############################
-    ##       RNN CHAIN
+    #       RNN CHAIN
     ###############################
     # Given v_t, and p_tm1 we can infer p_t
     def recurrence(self, v_t, z_t, p_tm1, state_tm1):
@@ -179,30 +181,30 @@ class FGcLstmRbm(FGcRBM, LSTM, Model_lop):
 
     def rnn_inference(self, v_init, z_init, p0, state_0):
         # We have to dimshuffle so that time is the first dimension
-        v = v_init.dimshuffle((1,0,2))
-        z = z_init.dimshuffle((1,0,2))
+        v = v_init.dimshuffle((1, 0, 2))
+        z = z_init.dimshuffle((1, 0, 2))
 
         # Write the recurrence to get the bias for the RBM
         (p_t, state_t, bv_t, bh_t), updates_dynamic_biases = theano.scan(
             fn=self.recurrence,
-            sequences=[v,z],
+            sequences=[v, z],
             outputs_info=[p0, state_0, None, None]
         )
 
         # Reshuffle the variables
-        bv_dyn = bv_t.dimshuffle((1,0,2))
-        bh_dyn = bh_t.dimshuffle((1,0,2))
+        bv_dyn = bv_t.dimshuffle((1, 0, 2))
+        bh_dyn = bh_t.dimshuffle((1, 0, 2))
 
         return p_t, state_t, bv_dyn, bh_dyn, updates_dynamic_biases
 
     ###############################
-    ##       NEGATIVE PARTICLE IN THE RBM
+    #       NEGATIVE PARTICLE IN THE RBM
     ###############################
     def get_negative_particle(self, v, z):
         # Get dynamic biases
         p0 = T.zeros((self.batch_size, self.n_hidden_recurrent))  # initial value for the RNN hidden
         state_0 = T.zeros((self.batch_size, self.n_hidden_recurrent))  # initial value for the RNN hidden
-        ########### Test values
+        # Test values
         p0.tag.test_value = np.zeros((self.batch_size, self.n_hidden_recurrent), dtype=theano.config.floatX)
         state_0.tag.test_value = np.zeros((self.batch_size, self.n_hidden_recurrent), dtype=theano.config.floatX)
         ########################
@@ -235,11 +237,11 @@ class FGcLstmRbm(FGcRBM, LSTM, Model_lop):
         return v_sample, mean_v, bv_dyn, bh_dyn, updates_inference
 
     ###############################
-    ##       COST
+    #       COST
     ###############################
     def cost_updates(self, optimizer):
         v_sample, mean_v, bv_dyn, bh_dyn, updates_train = self.get_negative_particle(self.v_init, self.z_init)
-        monitor = (T.nnet.binary_crossentropy(mean_v, self.v_init)).sum(axis=(1,2))/self.temporal_order
+        monitor = (T.nnet.binary_crossentropy(mean_v, self.v_init)).sum(axis=(1, 2))/self.temporal_order
         # Mean over batches
         monitor = T.mean(monitor)
 
@@ -263,10 +265,10 @@ class FGcLstmRbm(FGcRBM, LSTM, Model_lop):
         return cost, monitor, updates_train
 
     ###############################
-    ##       TRAIN FUNCTION
+    #       TRAIN FUNCTION
     ###############################
     def get_train_function(self, piano, orchestra, optimizer, name):
-        Model_lop.get_train_function(self)
+        self.step_flag = 'train'
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -276,21 +278,21 @@ class FGcLstmRbm(FGcRBM, LSTM, Model_lop):
         return theano.function(inputs=[index],
                                outputs=[cost, monitor],
                                updates=updates,
-                               givens={self.v_init: self.build_sequence(orchestra, index, self.batch_size, self.temporal_order, self.n_orchestra),
-                                       self.z_init: self.build_sequence(piano, index, self.batch_size, self.temporal_order, self.n_piano)},
+                               givens={self.v_init: build_theano_input.build_sequence(orchestra, index, self.batch_size, self.temporal_order, self.n_orchestra),
+                                       self.z_init: build_theano_input.build_sequence(piano, index, self.batch_size, self.temporal_order, self.n_piano)},
                                name=name
                                )
 
     ###############################
-    ##       PREDICTION
+    #       PREDICTION
     ###############################
     def prediction_measure(self):
         self.v_init = self.rng.uniform(low=0, high=1, size=(self.batch_size, self.temporal_order, self.n_orchestra)).astype(theano.config.floatX)
         # Generate the last frame for the sequence v
         v_sample, _, _, _, updates_valid = self.get_negative_particle(self.v_init, self.z_init)
-        predicted_frame = v_sample[:,-1,:]
+        predicted_frame = v_sample[:, -1, :]
         # Get the ground truth
-        true_frame = self.v_truth[:,-1,:]
+        true_frame = self.v_truth[:, -1, :]
         # Measure the performances
         precision = precision_measure(true_frame, predicted_frame)
         recall = recall_measure(true_frame, predicted_frame)
@@ -299,10 +301,10 @@ class FGcLstmRbm(FGcRBM, LSTM, Model_lop):
         return precision, recall, accuracy, updates_valid
 
     ###############################
-    ##       VALIDATION FUNCTION
+    #       VALIDATION FUNCTION
     ###############################
     def get_validation_error(self, piano, orchestra, name):
-        Model_lop.get_validation_error(self)
+        self.step_flag = 'validate'
         # index to a [mini]batch : int32
         index = T.ivector()
 
@@ -311,13 +313,13 @@ class FGcLstmRbm(FGcRBM, LSTM, Model_lop):
         return theano.function(inputs=[index],
                                outputs=[precision, recall, accuracy],
                                updates=updates_valid,
-                               givens={self.z_init: self.build_sequence(piano, index, self.batch_size, self.temporal_order, self.n_piano),
-                                       self.v_truth: self.build_sequence(orchestra, index, self.batch_size, self.temporal_order, self.n_orchestra)},
+                               givens={self.z_init: build_theano_input.build_sequence(piano, index, self.batch_size, self.temporal_order, self.n_piano),
+                                       self.v_truth: build_theano_input.build_sequence(orchestra, index, self.batch_size, self.temporal_order, self.n_orchestra)},
                                name=name
                                )
 
     ###############################
-    ##       GENERATION
+    #       GENERATION
     #   Need no seed in this model
     ###############################
     def recurrence_generation(self, z_t, p_tm1, state_tm1):
@@ -358,13 +360,13 @@ class FGcLstmRbm(FGcRBM, LSTM, Model_lop):
                               generation_length, seed_size,
                               batch_generation_size,
                               name="generate_sequence"):
-        Model_lop.get_generate_function(self)
+        self.step_flag = 'generate'
         # Seed_size is actually fixed by the temporal_order
         seed_size = self.temporal_order
         self.batch_generation_size = batch_generation_size
 
         ########################################################################
-        #########       Test Value
+        #       Test Value
         self.z_seed.tag.test_value = self.rng_np.rand(batch_generation_size, seed_size, self.n_piano).astype(theano.config.floatX)
         self.v_seed.tag.test_value = self.rng_np.rand(batch_generation_size, seed_size, self.n_orchestra).astype(theano.config.floatX)
         self.z_gen.tag.test_value = self.rng_np.rand(batch_generation_size, self.n_piano).astype(theano.config.floatX)
@@ -373,7 +375,7 @@ class FGcLstmRbm(FGcRBM, LSTM, Model_lop):
         ########################################################################
 
         ########################################################################
-        #########       Initial hidden recurrent state (theano function)
+        #       Initial hidden recurrent state (theano function)
         # Infer the state u at the end of the seed sequence
         p0 = T.zeros((batch_generation_size, self.n_hidden_recurrent))  # initial value for the RNN hidden
         state_0 = T.zeros((batch_generation_size, self.n_hidden_recurrent))  # initial value for the RNN hidden
@@ -393,14 +395,14 @@ class FGcLstmRbm(FGcRBM, LSTM, Model_lop):
         seed_function = theano.function(inputs=[index],
                                         outputs=[p_seed, state_seed],
                                         updates=updates_initialization,
-                                        givens={self.z_seed: self.build_sequence(piano, end_seed, batch_generation_size, seed_size, self.n_piano),
-                                                self.v_seed: self.build_sequence(orchestra, end_seed, batch_generation_size, seed_size, self.n_orchestra)},
+                                        givens={self.z_seed: build_theano_input.build_sequence(piano, end_seed, batch_generation_size, seed_size, self.n_piano),
+                                                self.v_seed: build_theano_input.build_sequence(orchestra, end_seed, batch_generation_size, seed_size, self.n_orchestra)},
                                         name=name
                                         )
         ########################################################################
 
         ########################################################################
-        #########       Next sample
+        #       Next sample
         # Graph for the orchestra sample and next hidden state
         next_p, next_state, next_v, updates_next_sample = self.recurrence_generation(self.z_gen, self.p_gen, self.state_gen)
         # Compile a function to get the next visible sample
@@ -417,15 +419,15 @@ class FGcLstmRbm(FGcRBM, LSTM, Model_lop):
             p_t, state_t = seed_function(ind)
 
             # Initialize generation matrice
-            piano_gen, orchestra_gen = self.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)
+            piano_gen, orchestra_gen = build_theano_input.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)
 
             for time_index in xrange(seed_size, generation_length, 1):
                 # Build piano vector
-                present_piano = piano_gen[:,time_index,:]
+                present_piano = piano_gen[:, time_index, :]
                 # Next Sample and update hidden chain state
                 p_t, state_t, v_t = next_sample(present_piano, p_t, state_t)
                 # Add this visible sample to the generated orchestra
-                orchestra_gen[:,time_index,:] = v_t
+                orchestra_gen[:, time_index, :] = v_t
 
             return (orchestra_gen,)
 
