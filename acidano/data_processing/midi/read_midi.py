@@ -181,8 +181,8 @@ class Read_midi(object):
 
 
 if __name__ == '__main__':
-    song_path = '/Users/leo/Recherche/GitHub_Aciditeam/database/Solo_midi/Nottingham/train/ashover_simple_chords_1.mid'
-    quantization = 2
+    song_path = 'DEBUG/test.mid'
+    quantization = 100
     midifile = Read_midi(song_path, quantization)
     pr = midifile.read_file()
 

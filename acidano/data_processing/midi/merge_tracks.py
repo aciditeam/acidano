@@ -26,7 +26,7 @@ def merge_tracks(tracks, dest_path):
                 tt = t + a[k].shape[0]
                 flag_time_increment = False
             if k not in pr.keys():
-                pr[k] = np.zeros((T,128))
+                pr[k] = np.zeros((T, 128))
             pr[k][t:tt] = a[k]
         t = tt + quantization * 4
         flag_time_increment = True
