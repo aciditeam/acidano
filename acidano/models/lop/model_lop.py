@@ -1,7 +1,9 @@
 #!/usr/bin/env python
-# -*- coding: utf8 -*-
+# -*- coding: utf-8-unix -*-
 
 # Plot lib
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 from acidano.visualization.numpy_array.visualize_numpy import visualize_mat
 
