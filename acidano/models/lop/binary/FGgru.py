@@ -238,7 +238,7 @@ class FGgru(Model_lop):
         ################################################################
         ################################################################
         ################################################################
-        # Batch Normalization
+        # Batch Normalization or no ??
         # orchestra_repr_norm = batch_norm(orchestra_repr, (n_lm1,))
         orchestra_repr_norm = orchestra_repr
         ################################################################
@@ -379,7 +379,7 @@ class FGgru(Model_lop):
         model_space['temporal_order'] = 10
         model_space['dropout_probability'] = 0
         model_space['weight_decay_coeff'] = 1e-4
-        model_space['number_note_normalization'] = True
+        # model_space['number_note_normalization'] = True
         # Last layer could be of size piano = 93
-        model_space['n_hidden'] = [500, 500, 93]
+        model_space['n_hidden'] = [500, 500, 100]
         return model_space

@@ -36,8 +36,8 @@ class Model_lop(object):
         self.dropout_probability = model_param['dropout_probability']
         self.weight_decay_coeff = model_param['weight_decay_coeff']
 
-        # Do we normalize input ?
-        self.number_note_normalization = model_param['number_note_normalization']
+        # Do we normalize input ?
+        # self.number_note_normalization = model_param['number_note_normalization']
 
         # Numpy and theano random generators
         self.rng_np = RandomState(25)
