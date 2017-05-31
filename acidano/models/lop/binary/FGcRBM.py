@@ -353,7 +353,7 @@ class FGcRBM(Model_lop):
 
         def closure(ind):
             # Initialize generation matrice
-            piano_gen, orchestra_gen = self.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)
+            piano_gen, orchestra_gen = build_theano_input.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)
 
             for index in xrange(seed_size, generation_length, 1):
                 # Build past vector

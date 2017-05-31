@@ -23,7 +23,7 @@ from acidano.utils.measure import accuracy_measure, precision_measure, recall_me
 from acidano.utils.regularization import dropout_function
 from acidano.utils.cost import weighted_binary_cross_entropy
 # Build matrix inputs
-from acidano.utils.build_theano_input import build_sequence
+import acidano.utils.build_theano_input as build_theano_input
 
 
 class FGgru(Model_lop):
@@ -302,7 +302,7 @@ class FGgru(Model_lop):
                                outputs=[cost, monitor],
                                updates=updates,
                                givens={self.p: piano[index, :],
-                                       self.o_past: build_sequence(orchestra, index-1, self.batch_size, self.temporal_order-1, self.n_o),
+                                       self.o_past: build_theano_input.build_sequence(orchestra, index-1, self.batch_size, self.temporal_order-1, self.n_o),
                                        self.o: orchestra[index, :]},
                                name=name
                                )
@@ -335,7 +335,7 @@ class FGgru(Model_lop):
                                outputs=[precision, recall, accuracy, true_frame, past_frame, piano_frame, predicted_frame],
                                updates=updates_valid,
                                givens={self.p: piano[index, :],
-                                       self.o_past: build_sequence(orchestra, index-1, self.batch_size, self.temporal_order-1, self.n_o),
+                                       self.o_past: build_theano_input.build_sequence(orchestra, index-1, self.batch_size, self.temporal_order-1, self.n_o),
                                        self.o_truth: orchestra[index, :]},
                                name=name
                                )
@@ -358,7 +358,7 @@ class FGgru(Model_lop):
 
         def closure(ind):
             # Initialize generation matrice
-            piano_gen, orchestra_gen = self.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)
+            piano_gen, orchestra_gen = build_theano_input.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)
             for index in xrange(seed_size, generation_length, 1):
                 # Build past vector
                 p_gen = piano_gen[:, index, :]
