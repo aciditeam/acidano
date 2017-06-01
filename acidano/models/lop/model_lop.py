@@ -95,7 +95,7 @@ class Model_lop(object):
 
             # Get mean, std and write title
             mean = np.mean(param)
-            std = np.mean(param)
+            std = np.std(param)
             min_v = np.min(param)
             max_v = np.max(param)
             title = param_shared.name + " mean = " + str(mean) + " std = " + str(std) +\
