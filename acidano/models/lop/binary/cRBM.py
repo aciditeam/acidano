@@ -296,15 +296,19 @@ class cRBM(Model_lop):
         def closure(ind):
             # Initialize generation matrice
             piano_gen, orchestra_gen = self.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)
-            for index in xrange(seed_size, generation_length, 1):
-                # Build past vector
-                p_gen = self.build_past_generation(piano_gen, orchestra_gen, index, batch_generation_size, self.temporal_order)
-                # Build initialisation vector
-                v_gen = (np.random.uniform(0, 1, (batch_generation_size, self.n_v))).astype(theano.config.floatX)
-                # Get the next sample
-                v_t = (np.asarray(next_sample(v_gen, p_gen))[0]).astype(theano.config.floatX)
+            for time_index in xrange(seed_size, generation_length, 1):
+                present_piano = piano_gen[:,time_index,:]
+                if present_piano.sum() == 0:
+                    v_t = np.zeros((self.n_orchestra,))
+                else:
+                    # Build past vector
+                    p_gen = self.build_past_generation(piano_gen, orchestra_gen, time_index, batch_generation_size, self.temporal_order)
+                    # Build initialisation vector
+                    v_gen = (np.random.uniform(0, 1, (batch_generation_size, self.n_v))).astype(theano.config.floatX)
+                    # Get the next sample
+                    v_t = (np.asarray(next_sample(v_gen, p_gen))[0]).astype(theano.config.floatX)
                 # Add this visible sample to the generated orchestra
-                orchestra_gen[:, index, :] = v_t
+                orchestra_gen[:, time_index, :] = v_t
             return (orchestra_gen,)
 
         return closure

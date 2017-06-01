@@ -356,14 +356,17 @@ class FGcRBM(Model_lop):
             piano_gen, orchestra_gen = build_theano_input.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)
 
             for index in xrange(seed_size, generation_length, 1):
-                # Build past vector
-                p_gen = self.build_p_generation(orchestra_gen, index, batch_generation_size, self.temporal_order)
-                # Build z vector
+                # Build z vector = piano input
                 z_gen = self.build_z_generation(piano_gen, index)
-                # Build initialisation vector
-                v_gen = (np.random.uniform(0, 1, (batch_generation_size, self.n_v))).astype(theano.config.floatX)
-                # Get the next sample
-                v_t = (np.asarray(next_sample(v_gen, p_gen, z_gen))[0]).astype(theano.config.floatX)
+                if z_gen.sum() == 0:
+                    v_t = np.zeros((self.n_v,))
+                else:
+                    # Build past vector
+                    p_gen = self.build_p_generation(orchestra_gen, index, batch_generation_size, self.temporal_order)
+                    # Build initialisation vector
+                    v_gen = (np.random.uniform(0, 1, (batch_generation_size, self.n_v))).astype(theano.config.floatX)
+                    # Get the next sample
+                    v_t = (np.asarray(next_sample(v_gen, p_gen, z_gen))[0]).astype(theano.config.floatX)
                 # Add this visible sample to the generated orchestra
                 orchestra_gen[:, index, :] = v_t
 

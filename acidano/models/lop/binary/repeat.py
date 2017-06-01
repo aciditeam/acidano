@@ -116,12 +116,15 @@ class Repeat(Model_lop):
 
         def closure(ind):
             # Initialize generation matrice
-            _, orchestra_gen = self.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)
-            for index in xrange(seed_size, generation_length, 1):
-                # Get the next sample
-                v_t = orchestra_gen[:, index-1, :]
+            piano_gen, orchestra_gen = self.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)
+            for time_index in xrange(seed_size, generation_length, 1):
+                present_piano = piano_gen[:, time_index, :]
+                if present_piano.sum() == 0:
+                    o_t = np.zeros((self.n_orchestra,))
+                else:
+                    o_t = orchestra_gen[:, time_index-1, :]
                 # Add this visible sample to the generated orchestra
-                orchestra_gen[:, index, :] = v_t
+                orchestra_gen[:, index, :] = o_t
             return (orchestra_gen,)
 
         return closure

@@ -362,10 +362,13 @@ class FGgru(Model_lop):
             for index in xrange(seed_size, generation_length, 1):
                 # Build past vector
                 p_gen = piano_gen[:, index, :]
-                o_past_gen = orchestra_gen[:, index-self.temporal_order+1:index, :]
-                # Get the next sample
-                out_theano = next_sample(o_past_gen, p_gen)
-                o_t = (np.asarray(out_theano)[0]).astype(theano.config.floatX)
+                if p_gen.sum() == 0:
+                    o_t = np.zeros((self.n_o,))
+                else:
+                    o_past_gen = orchestra_gen[:, index-self.temporal_order+1:index, :]
+                    # Get the next sample
+                    out_theano = next_sample(o_past_gen, p_gen)
+                    o_t = (np.asarray(out_theano)[0]).astype(theano.config.floatX)
                 # Add this visible sample to the generated orchestra
                 orchestra_gen[:, index, :] = o_t
             return (orchestra_gen,)

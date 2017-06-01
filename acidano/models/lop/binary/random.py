@@ -113,13 +113,15 @@ class Random(Model_lop):
         Model_lop.get_generate_function(self)
         def closure(ind):
             # Initialize generation matrice
-            _, orchestra_gen = self.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)
-            for index in xrange(seed_size, generation_length, 1):
-
-                # Get the next sample
-                v_t = np.random.binomial(n=1, p=self.p, size=(batch_generation_size, self.n_orchestra)).astype(theano.config.floatX)
+            piano_gen, orchestra_gen = self.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)
+            for time_index in xrange(seed_size, generation_length, 1):
+                present_piano = piano_gen[:, time_index, :]
+                if present_piano.sum() == 0:
+                    v_t = np.zeros((self.n_orchestra,))
+                else:
+                    v_t = np.random.binomial(n=1, p=self.p, size=(batch_generation_size, self.n_orchestra)).astype(theano.config.floatX)
                 # Add this visible sample to the generated orchestra
-                orchestra_gen[:,index,:] = v_t
+                orchestra_gen[:,time_index,:] = v_t
             return (orchestra_gen,)
 
         return closure

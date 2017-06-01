@@ -426,6 +426,8 @@ class FGcLstmRbm(FGcRBM, LSTM, Model_lop):
                 present_piano = piano_gen[:, time_index, :]
                 # Next Sample and update hidden chain state
                 p_t, state_t, v_t = next_sample(present_piano, p_t, state_t)
+                if present_piano.sum() == 0:
+                    v_t = np.zeros((self.n_orchestra,))
                 # Add this visible sample to the generated orchestra
                 orchestra_gen[:, time_index, :] = v_t
 

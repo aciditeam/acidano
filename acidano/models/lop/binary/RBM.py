@@ -281,17 +281,20 @@ class RBM(Model_lop):
         def closure(ind):
             # Initialize generation matrice
             piano_gen, orchestra_gen = self.initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size)
-
-            for index in xrange(seed_size, generation_length, 1):
-                # Build context vector
-                c_gen = self.build_c_generation(piano_gen, orchestra_gen, index, batch_generation_size, self.temporal_order)
-                # Build initialisation vector
-                v_gen = (np.random.uniform(0, 1, (batch_generation_size, self.n_v))).astype(theano.config.floatX)
-                # Get the next sample
-                v_t = (np.asarray(next_sample(v_gen, c_gen))[0]).astype(theano.config.floatX)
-                # Add this visible sample to the generated orchestra
+            for time_index in xrange(seed_size, generation_length, 1):
+                present_piano = piano_gen[:, time_index, :]
+                if present_piano.sum() == 0:
+                    # Automatically map a silence to a silence
+                    v_t = np.zeros((self.n_v,))
+                else:
+                    # Build context vector
+                    c_gen = self.build_c_generation(piano_gen, orchestra_gen, index, batch_generation_size, self.temporal_order)
+                    # Build initialisation vector
+                    v_gen = (np.random.uniform(0, 1, (batch_generation_size, self.n_v))).astype(theano.config.floatX)
+                    # Get the next sample
+                    v_t = (np.asarray(next_sample(v_gen, c_gen))[0]).astype(theano.config.floatX)
+                    # Add this visible sample to the generated orchestra
                 orchestra_gen[:,index,:] = v_t
-
             return (orchestra_gen,)
 
         return closure

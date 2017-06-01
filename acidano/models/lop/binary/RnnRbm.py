@@ -394,9 +394,10 @@ class RnnRbm(Model_lop):
                 present_piano = piano_gen[:, time_index, :]
                 # Next Sample and update hidden chain state
                 u_t, o_t = next_sample(present_piano, u_t)
+                if present_piano.sum() == 0:
+                    # Automatically map a silence to a silence
+                    o_t = np.zeros((self.n_orchestra,))
                 # Add this visible sample to the generated orchestra
                 orchestra_gen[:, time_index, :] = o_t
-
             return (orchestra_gen,)
-
         return closure

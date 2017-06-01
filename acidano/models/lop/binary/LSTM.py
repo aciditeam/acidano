@@ -35,6 +35,8 @@ class LSTM(Model_lop):
         output = orchestra(t)
         measure = cross-entropy error function
             (output units are binary units (y_j) considered independent : i != j -> y_j indep y_i)
+
+    With this model, silences are not automatically mapped to silences (just a problem of me being lazy).
     """
 
     def __init__(self,
