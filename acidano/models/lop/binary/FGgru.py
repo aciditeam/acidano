@@ -21,7 +21,7 @@ from acidano.utils.init import shared_normal, shared_zeros
 from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure
 # Regularization
 from acidano.utils.regularization import dropout_function
-from acidano.utils.cost import weighted_binary_cross_entropy
+from acidano.utils.cost import weighted_binary_cross_entropy, bp_mll
 # Build matrix inputs
 import acidano.utils.build_theano_input as build_theano_input
 
@@ -124,10 +124,10 @@ class FGgru(Model_lop):
         self.o_past_gen = T.tensor3('o_past_gen', dtype=theano.config.floatX)
 
         # Test values
-        self.p.tag.test_value = np.random.rand(self.batch_size, self.n_p).astype(theano.config.floatX)
-        self.o_past.tag.test_value = np.random.rand(self.batch_size,  self.temporal_order-1, self.n_o).astype(theano.config.floatX)
-        self.o.tag.test_value = np.random.rand(self.batch_size, self.n_o).astype(theano.config.floatX)
-        self.o_truth.tag.test_value = np.random.rand(self.batch_size, self.n_o).astype(theano.config.floatX)
+        self.p.tag.test_value = np.random.randint(2, size=(self.batch_size, self.n_p)).astype(theano.config.floatX)
+        self.o_past.tag.test_value = np.random.randint(2, size=(self.batch_size,  self.temporal_order-1, self.n_o)).astype(theano.config.floatX)
+        self.o.tag.test_value = np.random.randint(2, size=(self.batch_size, self.n_o)).astype(theano.config.floatX)
+        self.o_truth.tag.test_value = np.random.randint(2, size=(self.batch_size, self.n_o)).astype(theano.config.floatX)
         return
 
     ###############################
@@ -283,11 +283,20 @@ class FGgru(Model_lop):
         # Infer Orchestra sequence
         pred, _, _, updates_train = self.forward_pass(self.o_past, self.p, self.batch_size)
         # Compute error function
-        cost = weighted_binary_cross_entropy(pred, self.o, self.class_normalization)
-        # Sum over pitch axis
-        cost = cost.sum(axis=1)
-        # Mean along batch dimension
+        # cost = weighted_binary_cross_entropy(pred, self.o, self.class_normalization)
+        # # Sum over pitch axis
+        # cost = cost.sum(axis=1)
+        # # Mean along batch dimension
+        # cost = T.mean(cost)
+
+        ############################
+        ############################
+        # TEST
+        cost, updates_bp_mll = bp_mll(pred, self.o)
+        updates_train.update(updates_bp_mll)
         cost = T.mean(cost)
+        ############################
+        ############################
 
         # Weight decay
         # cost = cost + self.weight_decay_coeff * self.get_weight_decay() + (0.1 * T.pow(self.b, 2).sum())
