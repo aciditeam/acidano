@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
+import theano
 import theano.tensor as T
 import numpy as np
 import math
@@ -108,3 +109,18 @@ def KLGaussianGaussian(mu1, sig1, mu2, sig2):
 def weighted_binary_cross_entropy(pred, target, weights):
     # From theano
     return -(weights * target * T.log(pred) + (1.0 - target) * T.log(1.0 - pred))
+
+
+def bp_mll(pred, target):
+    # From : Multi-Label Neural Networks with Applications to
+    # Functional Genomics and Text Categorization
+    # https://cs.nju.edu.cn/zhouzh/zhouzh.files/publication/tkde06a.pdf
+    y_i = pred * target
+    not_y_i = pred * (1-target)
+
+    matrices, updates = theano.scan(fn=lambda p, t: T.outer(p, t),
+                                    sequences=[y_i, not_y_i])
+
+    cost = matrices.sum(axis=(1,2))
+
+    return cost, updates
