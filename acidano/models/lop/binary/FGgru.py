@@ -88,9 +88,11 @@ class FGgru(Model_lop):
                 self.U_h[layer] = shared_normal((n_htm1, n_ht), 0.01, name='W_h'+str(layer))
                 self.W_h[layer] = shared_normal((n_ht, n_ht), 0.01, name='U_h'+str(layer))
                 self.b_h[layer] = shared_zeros((n_ht), name='b_h'+str(layer))
-
+            
+            self.W_piano = shared_normal((self.n_p, self.n_hs[-1]), 0.01, name='W_piano')
+            self.b_piano = shared_zeros((self.n_hs[-1]), name='b_piano')
             # Last predictive layer
-            self.W = shared_normal((self.n_hs[-1] + self.n_p, self.n_o), 0.01, name='W')
+            self.W = shared_normal((self.n_hs[-1] * 2, self.n_o), 0.01, name='W')
             self.b = shared_zeros((self.n_o), name='b')
         else:
             # Layer weights
@@ -104,12 +106,14 @@ class FGgru(Model_lop):
                 self.W_h[layer] = weights_initialization['W_h'][layer]
                 self.U_h[layer] = weights_initialization['U_h'][layer]
                 self.b_h[layer] = weights_initialization['b_h'][layer]
+            self.W_piano = weights_initialization['W_piano']
+            self.b_piano = weights_initialization['b_piano']
             self.W = weights_initialization['W']
             self.b = weights_initialization['b']
 
         self.params = self.W_z.values() + self.U_z.values() + self.b_z.values() + self.W_r.values() + self.U_r.values() +\
             self.b_r.values() + self.W_h.values() + self.U_h.values() + self.b_h.values() +\
-            [self.W, self.b]
+            [self.W_piano, self.b_piano, self.W, self.b]
 
         # Variables
         self.p = T.matrix('p', dtype=theano.config.floatX)
@@ -244,8 +248,15 @@ class FGgru(Model_lop):
         ################################################################
         ################################################################
         ################################################################
+        
+        ################################################################
+        ################################################################
+        # Piano through a mlp ?
+        piano_repr = T.nnet.sigmoid(T.dot(piano_norm, self.W_piano) + self.b_piano)
+        ################################################################
+        ################################################################
 
-        concat_input = T.concatenate([orchestra_repr_norm, piano_norm], axis=1)
+        concat_input = T.concatenate([orchestra_repr_norm, piano_repr], axis=1)
         # Last layer
         orch_pred_mean = T.nnet.sigmoid(T.dot(concat_input, self.W) + self.b)
 
