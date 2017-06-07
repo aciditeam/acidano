@@ -14,7 +14,6 @@ from numpy.random import RandomState
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 import theano.tensor as T
-import theano
 
 from bokeh.plotting import figure, output_file, save
 
