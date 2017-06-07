@@ -10,7 +10,7 @@ def write_numpy_array_html(filename, dataname, colour_palette='blue_gradient', m
         user_paths = os.environ['PYTHONPATH'].split(os.pathsep)
         for user_path in user_paths:
             if re.search('acidano', user_path):
-                d3js_source_path = user_path + 'acidano/visualization/d3.v3.min.js'
+                d3js_source_path = os.path.join(user_path, 'acidano/visualization/d3.v3.min.js')
                 break
 
     # Colour palette

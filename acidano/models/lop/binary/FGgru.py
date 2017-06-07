@@ -21,7 +21,7 @@ from acidano.utils.init import shared_normal, shared_zeros
 from acidano.utils.measure import accuracy_measure, precision_measure, recall_measure
 # Regularization
 from acidano.utils.regularization import dropout_function
-from acidano.utils.cost import weighted_binary_cross_entropy, bp_mll
+import acidano.utils.cost as cost_module
 # Build matrix inputs
 import acidano.utils.build_theano_input as build_theano_input
 
@@ -57,6 +57,7 @@ class FGgru(Model_lop):
         # Vector of size n_o, number of notes activation divided by mean number of note activation
         # See : https://arxiv.org/pdf/1703.10663.pdf
         self.class_normalization = model_param['class_normalization']
+        self.mean_notes_activation = model_param['mean_notes_activation']
 
         self.W_z = {}
         self.U_z = {}
@@ -282,19 +283,23 @@ class FGgru(Model_lop):
     def cost_updates(self, optimizer):
         # Infer Orchestra sequence
         pred, _, _, updates_train = self.forward_pass(self.o_past, self.p, self.batch_size)
-        # Compute error function
-        # cost = weighted_binary_cross_entropy(pred, self.o, self.class_normalization)
-        # # Sum over pitch axis
-        # cost = cost.sum(axis=1)
-        # # Mean along batch dimension
-        # cost = T.mean(cost)
 
+        # Compute error function
         ############################
         ############################
-        # TEST
-        cost, updates_bp_mll = bp_mll(pred, self.o)
-        updates_train.update(updates_bp_mll)
+        # TEST SEVERAL DIFFERENT COST FUNCTION
+        # cost = cost_module.weighted_binary_cross_entropy_0(pred, self.o, self.class_normalization)
+        # cost = cost_module.weighted_binary_cross_entropy_1(pred, self.o, self.mean_notes_activation)
+        cost = cost_module.weighted_binary_cross_entropy_2(pred, self.o)
+        # Sum over pitch axis
+        cost = cost.sum(axis=1)
+        # Mean along batch dimension
         cost = T.mean(cost)
+
+        ########### BP MLL
+        # cost, updates_bp_mll = cost_module.bp_mll(pred, self.o)
+        # updates_train.update(updates_bp_mll)
+        # cost = T.mean(cost)
         ############################
         ############################
 

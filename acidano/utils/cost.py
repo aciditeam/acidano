@@ -106,9 +106,35 @@ def KLGaussianGaussian(mu1, sig1, mu2, sig2):
     return kl
 
 
-def weighted_binary_cross_entropy(pred, target, weights):
+def weighted_binary_cross_entropy_0(pred, target, class_normalization):
+    # Weights correspond to the mean number of positive occurences of the class in the training dataset
     # From theano
-    return -(weights * target * T.log(pred) + (1.0 - target) * T.log(1.0 - pred))
+    return -(class_normalization * target * T.log(pred) + (1.0 - target) * T.log(1.0 - pred))
+
+
+def weighted_binary_cross_entropy_1(pred, target, mean_notes_activation):
+    # Weights correspond to the mean number of positive occurences of the class in the training dataset
+    # From :
+    # Weighted Multi-label Binary Cross-entropy Criterion
+    # https://github.com/Nanne/WeightedMultiLabelBinaryCrossEntropyCriterion
+    # https://arxiv.org/pdf/1511.02251.pdf
+    # From theano
+    match = target * T.log(pred) / T.where(mean_notes_activation == 0, 1e-10, mean_notes_activation)
+    not_match = (1.0 - target) * T.log(1.0 - pred) / T.where(mean_notes_activation == 1, 1e-10, (1-mean_notes_activation))
+    return -(match + not_match)
+
+
+def weighted_binary_cross_entropy_2(pred, target):
+    # Goal is to equally weight positive and negative units
+    # Must sum to 1
+    # Inpired from
+    # The return of ADABOOST.MH: multi-class Hamming trees
+    # https://arxiv.org/pdf/1312.6086.pdf
+    # From theano
+    N_on = T.transpose(T.tile(target.sum(axis=1), (210, 1)))
+    N_off = T.transpose(T.tile((1-target).sum(axis=1), (210, 1)))
+    # +1 to avoid zero weighting
+    return -((N_on+1) * target * T.log(pred) + (N_off + 1) * (1.0 - target) * T.log(1.0 - pred))
 
 
 def bp_mll(pred, target):

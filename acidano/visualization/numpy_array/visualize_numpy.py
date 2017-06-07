@@ -15,7 +15,7 @@ def visualize_dict(pr, path, file_name_no_extension, time_indices=None):
     temp_csv = path + '/' + file_name_no_extension + '.csv'
     np.savetxt(temp_csv, AAA, delimiter=',')
     dump_to_csv(temp_csv, temp_csv)
-    write_numpy_array_html(path + '/' + file_name_no_extension + ".html", file_name_no_extension)
+    write_numpy_array_html(path + '/' + file_name_no_extension + ".html", file_name_no_extension, d3js_source_path='/Users/leo/Recherche/GitHub_Aciditeam/acidano/acidano/visualization/d3.v3.min.js')
 
 
 def visualize_mat(pr, path, file_name_no_extension, time_indices=None):
@@ -25,7 +25,7 @@ def visualize_mat(pr, path, file_name_no_extension, time_indices=None):
     temp_csv = path + '/' + file_name_no_extension + '.csv'
     np.savetxt(temp_csv, pr, delimiter=',')
     dump_to_csv(temp_csv, temp_csv)
-    write_numpy_array_html(path + '/' + file_name_no_extension + ".html", file_name_no_extension, 'rainbow')
+    write_numpy_array_html(path + '/' + file_name_no_extension + ".html", file_name_no_extension, 'rainbow', d3js_source_path='/Users/leo/Recherche/GitHub_Aciditeam/acidano/acidano/visualization/d3.v3.min.js')
 
 
 def visualize_mat_proba(pr, path, file_name_no_extension, time_indices=None):
@@ -35,4 +35,4 @@ def visualize_mat_proba(pr, path, file_name_no_extension, time_indices=None):
     temp_csv = path + '/' + file_name_no_extension + '.csv'
     np.savetxt(temp_csv, pr, delimiter=',')
     dump_to_csv(temp_csv, temp_csv)
-    write_numpy_array_html(path + '/' + file_name_no_extension + ".html", file_name_no_extension, 'rainbow', (0, 1))
+    write_numpy_array_html(path + '/' + file_name_no_extension + ".html", file_name_no_extension, 'rainbow', (0, 1), d3js_source_path='/Users/leo/Recherche/GitHub_Aciditeam/acidano/acidano/visualization/d3.v3.min.js')
