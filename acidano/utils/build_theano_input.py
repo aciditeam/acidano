@@ -52,7 +52,7 @@ def build_seed(pr, index, batch_size, length_seq):
 
 def initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size):
     # Build piano generation
-    piano_gen = build_seed(piano.get_value(), ind,
+    piano_gen = build_seed(piano, ind,
                            batch_generation_size, generation_length)
 
     # Build orchestra seed and cast it in the orchestration generation vector
