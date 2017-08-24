@@ -181,10 +181,11 @@ class Read_midi(object):
 
 
 if __name__ == '__main__':
-    song_path = 'DEBUG/test.mid'
+    song_path = '/home/aciditeam-leo/Aciditeam/database/Orchestration/LOP_database_30_06_17/bouliane/17/'
     quantization = 100
     midifile = Read_midi(song_path, quantization)
     pr = midifile.read_file()
+    import pdb; pdb.set_trace()
 
     AAA = sum_along_instru_dim(pr)
     # AAA = AAA[0:quantization*12, :]

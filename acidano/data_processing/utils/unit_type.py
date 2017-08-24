@@ -19,8 +19,8 @@ def from_rawpr_to_type(dico_matrix, unit_type):
         #       - 'normalized' values
         #       - same reconstruction as for binary units when building midi files
         for k, matrix in dico_matrix.iteritems():
-            matrix = matrix / 127
-            result[k] = matrix
+            res_mat = matrix / 127.0
+            result[k] = res_mat
     elif re.search('categorical', unit_type):
         # Categorical
         for k, matrix in dico_matrix.iteritems():
@@ -29,17 +29,20 @@ def from_rawpr_to_type(dico_matrix, unit_type):
             matrix = matrix / 127.0
             matrix = from_continuous_to_categorical(matrix, N_category)
             result[k] = matrix
+    else:
+        raise Error(unit_type + 'is not a unit type')
     return result
 
 
 def from_type_to_binary(pr, unit_type):
     result = {}
     if unit_type == 'binary':
-        result = pr
+        return pr
     elif unit_type == 'continuous':
         for k, matrix in pr.iteritems():
-            matrix[np.nonzero(matrix)] = 1
-            result[k] = matrix
+            res_mat = np.copy(matrix)
+            res_mat[np.nonzero(res_mat)] = 1
+            result[k] = res_mat
     elif re.search('categorical', unit_type):
         m = re.search(r'[0-9]+$', unit_type)
         N_category = int(m.group(0))
