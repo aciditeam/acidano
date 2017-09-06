@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# -*- coding: utf8 -*-
+# -*- coding: utf-8-unix -*-
 
 # Model lop
 from acidano.models.lop.model_lop import Model_lop
@@ -44,6 +44,9 @@ class FGgru(Model_lop):
 
         Model_lop.__init__(self, model_param, dimensions, checksum_database)
 
+        self.threshold = model_param['threshold']
+        self.weighted_ce = model_param['weighted_ce']
+
         # Datas are represented like this:
         #   - visible = concatenation of the data : (num_batch, piano ^ orchestra_dim * temporal_order)
         self.n_p = dimensions['piano_dim']
@@ -73,26 +76,30 @@ class FGgru(Model_lop):
             # Weights
             for layer in xrange(self.n_layer):
                 if layer == 0:
-                    n_htm1 = self.n_o
+                    n_hlm1 = self.n_o
                 else:
-                    n_htm1 = self.n_hs[layer-1]
-                n_ht = self.n_hs[layer]
+                    n_hlm1 = self.n_hs[layer-1]
+                n_hl = self.n_hs[layer]
                 # Forget gate
-                self.U_z[layer] = shared_normal((n_htm1, n_ht), 0.01, name='W_z'+str(layer))
-                self.W_z[layer] = shared_normal((n_ht, n_ht), 0.01, name='U_z'+str(layer))
-                self.b_z[layer] = shared_zeros((n_ht), name='b_z'+str(layer))
+                self.U_z[layer] = shared_normal((n_hlm1, n_hl), 0.01, name='U_z'+str(layer))
+                self.W_z[layer] = shared_normal((n_hl, n_hl), 0.01, name='W_z'+str(layer))
+                self.b_z[layer] = shared_zeros((n_hl), name='b_z'+str(layer))
                 # Reset gate
-                self.U_r[layer] = shared_normal((n_htm1, n_ht), 0.01, name='W_r'+str(layer))
-                self.W_r[layer] = shared_normal((n_ht, n_ht), 0.01, name='U_r'+str(layer))
-                self.b_r[layer] = shared_zeros((n_ht), name='b_r'+str(layer))
+                self.U_r[layer] = shared_normal((n_hlm1, n_hl), 0.01, name='U_r'+str(layer))
+                self.W_r[layer] = shared_normal((n_hl, n_hl), 0.01, name='W_r'+str(layer))
+                self.b_r[layer] = shared_zeros((n_hl), name='b_r'+str(layer))
                 # Recurence
-                self.U_h[layer] = shared_normal((n_htm1, n_ht), 0.01, name='W_h'+str(layer))
-                self.W_h[layer] = shared_normal((n_ht, n_ht), 0.01, name='U_h'+str(layer))
-                self.b_h[layer] = shared_zeros((n_ht), name='b_h'+str(layer))
-
+                self.U_h[layer] = shared_normal((n_hlm1, n_hl), 0.01, name='U_h'+str(layer))
+                self.W_h[layer] = shared_normal((n_hl, n_hl), 0.01, name='W_h'+str(layer))
+                self.b_h[layer] = shared_zeros((n_hl), name='b_h'+str(layer))
+            
+            self.W_piano = shared_normal((self.n_p, self.n_hs[-1]), 0.01, name='W_piano')
+            self.b_piano = shared_zeros((self.n_hs[-1]), name='b_piano')
             # Last predictive layer
-            self.W = shared_normal((self.n_hs[-1] + self.n_p, self.n_o), 0.01, name='W')
+            # self.W = shared_normal((self.n_hs[-1] * 2, self.n_o), 0.01, name='W')
+            self.W = shared_normal((self.n_hs[-1], self.n_o), 0.01, name='W')
             self.b = shared_zeros((self.n_o), name='b')
+            self.sum_coeff = theano.shared(1.0, name='sum_coeff')
         else:
             # Layer weights
             for layer, n_h_layer in enumerate(self.n_hs):
@@ -105,12 +112,15 @@ class FGgru(Model_lop):
                 self.W_h[layer] = weights_initialization['W_h'][layer]
                 self.U_h[layer] = weights_initialization['U_h'][layer]
                 self.b_h[layer] = weights_initialization['b_h'][layer]
+            self.W_piano = weights_initialization['W_piano']
+            self.b_piano = weights_initialization['b_piano']
             self.W = weights_initialization['W']
             self.b = weights_initialization['b']
+            self.sum_coeff = weights_initialization['sum_coeff']
 
         self.params = self.W_z.values() + self.U_z.values() + self.b_z.values() + self.W_r.values() + self.U_r.values() +\
             self.b_r.values() + self.W_h.values() + self.U_h.values() + self.b_h.values() +\
-            [self.W, self.b]
+            [self.W_piano, self.b_piano, self.W, self.b, self.sum_coeff]
 
         # Variables
         self.p = T.matrix('p', dtype=theano.config.floatX)
@@ -245,8 +255,22 @@ class FGgru(Model_lop):
         ################################################################
         ################################################################
         ################################################################
+        
+        ################################################################
+        ################################################################
+        # Piano through a mlp ?
+        piano_repr = T.nnet.sigmoid(T.dot(piano_norm, self.W_piano) + self.b_piano)
+        ################################################################
+        ################################################################
 
-        concat_input = T.concatenate([orchestra_repr_norm, piano_norm], axis=1)
+        ################################################################
+        ################################################################
+        # Sum or concatenate
+        # concat_input = T.concatenate([orchestra_repr_norm, piano_repr], axis=1)
+        concat_input = orchestra_repr_norm + self.sum_coeff * piano_repr
+        ################################################################
+        ################################################################
+
         # Last layer
         orch_pred_mean = T.nnet.sigmoid(T.dot(concat_input, self.W) + self.b)
 
@@ -254,8 +278,7 @@ class FGgru(Model_lop):
         ################################################################
         ################################################################
         # Before sampling, we THRESHOLD
-        # orch_pred_mean_threshold = orch_pred_mean
-        orch_pred_mean_threshold = T.where(T.le(orch_pred_mean, 0.1), 0, orch_pred_mean)
+        orch_pred_mean_threshold = T.where(T.le(orch_pred_mean, self.threshold), 0, orch_pred_mean)
         ################################################################
         ################################################################
         ################################################################
@@ -277,9 +300,19 @@ class FGgru(Model_lop):
         ############################
         ############################
         # TEST SEVERAL DIFFERENT COST FUNCTION
-        # cost = cost_module.weighted_binary_cross_entropy_0(pred, self.o, self.class_normalization)
-        # cost = cost_module.weighted_binary_cross_entropy_1(pred, self.o, self.mean_notes_activation)
-        cost = cost_module.weighted_binary_cross_entropy_2(pred, self.o)
+        if self.weighted_ce == 0:
+            cost = T.nnet.binary_crossentropy(pred, self.o)  
+        elif self.weighted_ce == 1:
+            cost = cost_module.weighted_binary_cross_entropy_0(pred, self.o, self.class_normalization)
+        elif self.weighted_ce == 2:
+            cost = cost_module.weighted_binary_cross_entropy_1(pred, self.o, self.mean_notes_activation)
+        elif self.weighted_ce == 3:
+            cost = cost_module.weighted_binary_cross_entropy_2(pred, self.o)
+        elif self.weighted_ce == 4:
+            cost = cost_module.weighted_binary_cross_entropy_3(pred, self.o, self.mean_notes_activation)
+        elif self.weighted_ce == 5:
+            cost = cost_module.weighted_binary_cross_entropy_4(pred, self.o, self.class_normalization)
+        
         # Sum over pitch axis
         cost = cost.sum(axis=1)
         # Mean along batch dimension
@@ -306,20 +339,22 @@ class FGgru(Model_lop):
     ###############################
     #       TRAIN FUNCTION
     ###############################
-    def get_train_function(self, piano, orchestra, optimizer, name):
+    def build_train_fn(self, optimizer, name):
         self.step_flag = 'train'
-        # index to a [mini]batch : int32
-        index = T.ivector()
         # get the cost and the gradient corresponding to one step of CD-15
         cost, monitor, updates = self.cost_updates(optimizer)
-        return theano.function(inputs=[index],
-                               outputs=[cost, monitor],
-                               updates=updates,
-                               givens={self.p: piano[index, :],
-                                       self.o_past: build_theano_input.build_sequence(orchestra, index-1, self.batch_size, self.temporal_order-1, self.n_o),
-                                       self.o: orchestra[index, :]},
-                               name=name
-                               )
+        self.train_function = theano.function(inputs=[self.p, self.o_past, self.o],
+                                outputs=[cost, monitor],
+                                updates=updates,
+                                name=name
+                                )
+        return
+
+
+    def train_batch(self, batch_data):
+        # Simply used for parsing the batch_data
+        p, o_past, o = batch_data
+        return self.train_function(p, o_past, o)
 
     ###############################
     #       PREDICTION
@@ -338,21 +373,22 @@ class FGgru(Model_lop):
     ###############################
     #       VALIDATION FUNCTION
     ##############################
-    def get_validation_error(self, piano, orchestra, name):
+    def build_validation_fn(self, name):
         self.step_flag = 'validate'
-        # index to a [mini]batch : int32
-        index = T.ivector()
-
+        
         precision, recall, accuracy, true_frame, past_frame, piano_frame, predicted_frame, updates_valid = self.prediction_measure()
 
-        return theano.function(inputs=[index],
-                               outputs=[precision, recall, accuracy, true_frame, past_frame, piano_frame, predicted_frame],
-                               updates=updates_valid,
-                               givens={self.p: piano[index, :],
-                                       self.o_past: build_theano_input.build_sequence(orchestra, index-1, self.batch_size, self.temporal_order-1, self.n_o),
-                                       self.o_truth: orchestra[index, :]},
-                               name=name
-                               )
+        self.validation_error = theano.function(inputs=[self.p, self.o_past, self.o_truth],
+                                                outputs=[precision, recall, accuracy],
+                                                updates=updates_valid,
+                                                name=name
+                                                )
+        return
+
+    def validate_batch(self, batch_data):
+        # Simply used for parsing the batch_data
+        p, o_past, o = batch_data
+        return self.validation_error(p, o_past, o)
 
     ###############################
     #       GENERATION
@@ -376,6 +412,7 @@ class FGgru(Model_lop):
             for index in xrange(seed_size, generation_length, 1):
                 # Build past vector
                 p_gen = piano_gen[:, index, :]
+                # Automatically map a silence to a silence
                 if p_gen.sum() == 0:
                     o_t = np.zeros((self.n_o,))
                 else:
@@ -400,3 +437,9 @@ class FGgru(Model_lop):
         # Last layer could be of size piano = 93
         model_space['n_hidden'] = [500, 500, 100]
         return model_space
+
+    def generator(self, piano, orchestra, index):    
+        p = piano[index, :]
+        o_past = build_theano_input.build_sequence(orchestra, index-1, self.batch_size, self.temporal_order-1, self.n_o)
+        o_truth = orchestra[index, :]
+        return p, o_past, o_truth

@@ -271,7 +271,6 @@ if __name__ == '__main__':
     visualize_mat(orch, 'DEBUG', 'orch', time_indices=None)
     visualize_mat(piano, 'DEBUG', 'piano', time_indices=None)
     
-
     # call(["open", "DEBUG/numpy_vis.html"])
 
     # pr_clip = clip_pr(pr)

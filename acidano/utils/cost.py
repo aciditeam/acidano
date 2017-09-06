@@ -109,6 +109,11 @@ def KLGaussianGaussian(mu1, sig1, mu2, sig2):
 def weighted_binary_cross_entropy_0(pred, target, class_normalization):
     # Weights correspond to the mean number of positive occurences of the class in the training dataset
     # From theano
+    # 
+    # RESULTS :
+    # Accuracy = 40 %
+    # Listening : does not seems to respect harmony
+    # Weights are structured with always stripes of negatives units for rarely activated notes.
     return -(class_normalization * target * T.log(pred) + (1.0 - target) * T.log(1.0 - pred))
 
 
@@ -119,6 +124,12 @@ def weighted_binary_cross_entropy_1(pred, target, mean_notes_activation):
     # https://github.com/Nanne/WeightedMultiLabelBinaryCrossEntropyCriterion
     # https://arxiv.org/pdf/1511.02251.pdf
     # From theano
+    #
+    # RESULTS :
+    # Accuracy = 26%
+    # Listening : quite good, a bit too much notes, but harmonically consistent
+    # Weights : static biases on output still bias toward negative values, but in a more structured way, i.e. some values around the most likely notes are high (event positives)
+    # W is highly structured, but past influence is weaker and less contrasted than piano influence
     match = target * T.log(pred) / T.where(mean_notes_activation == 0, 1e-10, mean_notes_activation)
     not_match = (1.0 - target) * T.log(1.0 - pred) / T.where(mean_notes_activation == 1, 1e-10, (1-mean_notes_activation))
     return -(match + not_match)
@@ -131,10 +142,47 @@ def weighted_binary_cross_entropy_2(pred, target):
     # The return of ADABOOST.MH: multi-class Hamming trees
     # https://arxiv.org/pdf/1312.6086.pdf
     # From theano
-    N_on = T.transpose(T.tile(target.sum(axis=1), (210, 1)))
-    N_off = T.transpose(T.tile((1-target).sum(axis=1), (210, 1)))
+    # 
+    # RESULTS :
+    # Accuracy = 19%
+    # Listening : bad, mainly silence
+    # Weights : Quite good and balance, gaussian centered around 0, even for static biases !
+    # The problem is just that the activations of the output units are very low, but the structure seems ok
+    DIM = pred.shape[1]
+    N_on = T.transpose(T.tile(target.sum(axis=1), (DIM, 1))) + 1
+    N_off = T.transpose(T.tile((1-target).sum(axis=1), (DIM, 1))) + 1
     # +1 to avoid zero weighting
-    return -((N_on+1) * target * T.log(pred) + (N_off + 1) * (1.0 - target) * T.log(1.0 - pred))
+    return -(target * T.log(pred) / N_on + (1.0 - target) * T.log(1.0 - pred) / N_off)
+
+
+def weighted_binary_cross_entropy_3(pred, target, mean_notes_activation):
+    # Mix of 1 and 2
+    # From theano
+    #
+    # RESULTS
+    # Accuracy = 31%
+    # Listening : not good, not harmonic, strange ranges...
+    # Weights : static biases strongly biased toward negative values
+    # W shows that past is neglected
+    BATCH_SIZE = pred.shape[0]
+    DIM = pred.shape[1]
+    N_on_per_batch = T.transpose(T.tile(target.sum(axis=1), (DIM, 1))) + 1
+    N_off_per_batch = T.transpose(T.tile((1-target).sum(axis=1), (DIM, 1))) + 1
+    mean_notes_on = T.tile(T.where(mean_notes_activation==0, 1e-10, mean_notes_activation), (BATCH_SIZE, 1))
+    mean_notes_off = T.tile(T.where(mean_notes_activation==1, 1e-10, (1-mean_notes_activation)), (BATCH_SIZE, 1))
+    # +1 to avoid zero weighting
+    return - (N_on_per_batch * target * T.log(pred) / mean_notes_on + N_off_per_batch * (1.0 - target) * T.log(1.0 - pred) / mean_notes_off)
+
+
+def weighted_binary_cross_entropy_4(pred, target, class_normalization):
+    # Mix of 0 and 2
+    # From theano
+    DIM = pred.shape[1]
+    BATCH_SIZE = pred.shape[0]
+    N_on_per_batch = (T.transpose(T.tile(target.sum(axis=1), (DIM, 1))) + 1)
+    N_off_per_batch = (T.transpose(T.tile((1-target).sum(axis=1), (DIM, 1))) + 1)
+    class_norm_tile = T.tile(class_normalization, (BATCH_SIZE, 1))
+    return -(class_norm_tile * target * T.log(pred) / N_on_per_batch + (1.0 - target) * T.log(1.0 - pred) / N_off_per_batch)
 
 
 def bp_mll(pred, target):
@@ -143,10 +191,7 @@ def bp_mll(pred, target):
     # https://cs.nju.edu.cn/zhouzh/zhouzh.files/publication/tkde06a.pdf
     y_i = pred * target
     not_y_i = pred * (1-target)
-
     matrices, updates = theano.scan(fn=lambda p, t: T.outer(p, t),
                                     sequences=[y_i, not_y_i])
-
     cost = matrices.sum(axis=(1,2))
-
     return cost, updates

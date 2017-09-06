@@ -5,11 +5,10 @@ import theano
 import theano.tensor as T
 import numpy as np
 
-
 def build_sequence(pr, index, batch_size, seq_length, last_dim):
     # T = seq_length
     # [T-1, T-2, ..., 0]
-    decreasing_time = theano.shared(np.arange(seq_length-1, -1, -1, dtype=np.int32))
+    decreasing_time = np.arange(seq_length-1, -1, -1, dtype=np.int32)
     # Temporal_shift =
     #
     #        [i0-T+1   ; i1-T+1; i2-T+1 ; ... ; iN-T+1;
@@ -20,13 +19,13 @@ def build_sequence(pr, index, batch_size, seq_length, last_dim):
     #   with T = temporal_order
     #        N = pitch_order
     #
-    temporal_shift = T.tile(decreasing_time, (batch_size, 1))
+    temporal_shift = np.tile(decreasing_time, (batch_size, 1))
     # Reshape
     index_full = index.reshape((batch_size, 1)) - temporal_shift
     # Slicing
     pr = pr[index_full.ravel(), :]
     # Reshape
-    return T.reshape(pr, (batch_size, seq_length, last_dim))
+    return np.reshape(pr, (batch_size, seq_length, last_dim))
 
 
 ######
@@ -53,16 +52,16 @@ def build_seed(pr, index, batch_size, length_seq):
 
 def initialization_generation(piano, orchestra, ind, generation_length, batch_generation_size, seed_size):
     # Build piano generation
-    piano_gen = build_seed(piano.get_value(), ind,
+    piano_gen = build_seed(piano, ind,
                            batch_generation_size, generation_length)
 
     # Build orchestra seed and cast it in the orchestration generation vector
     first_generated_ind = (ind - generation_length + seed_size) + 1
     last_orchestra_seed_ind = first_generated_ind - 1
-    orchestra_seed = build_seed(orchestra.get_value(), last_orchestra_seed_ind,
+    orchestra_seed = build_seed(orchestra, last_orchestra_seed_ind,
                                 batch_generation_size, seed_size)
 
-    n_orchestra = orchestra.get_value().shape[1]
+    n_orchestra = orchestra.shape[1]
     orchestra_gen = np.zeros((batch_generation_size, generation_length, n_orchestra)).astype(theano.config.floatX)
     orchestra_gen[:, :seed_size, :] = orchestra_seed
     return piano_gen, orchestra_gen
